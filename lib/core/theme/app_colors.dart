@@ -1,37 +1,34 @@
-// lib/core/theme/app_colors.dart
-
 import 'package:flutter/material.dart';
 
-/// Paleta de cores inspirada no estilo Nubank — fundo limpo, destaque roxo.
 class AppColors {
   AppColors._();
 
-  // ── Fundos ──
-  static const Color background = Color(0xFFF8F9FA); // cinza super claro
-  static const Color surface = Color(0xFFFFFFFF);     // branco puro (cards)
+  static const Color principal = Color(0xFF070A13);
+  static const Color secundaria = Color(0xFF2F6BFF);
+  static const Color terciaria = Color(0xFF121625);
+  static const Color quaternaria = Color(0xFF1A2033);
+  static const Color ciano = Color(0xFF11C6D9);
+  static const Color amarelo = Color(0xFFF5AA18);
+  static const Color textoPrimaria = Color(0xFFF7FAFF);
+  static const Color textoSecundaria = Color(0xFF8A94AD);
+  static const Color brilho = Color(0xFF1237D8);
 
-  // ── Cor principal (Roxo — confiança / Nubank) ──
-  static const Color primary = Color(0xFF6C3FEE);
-  static const Color primaryLight = Color(0xFFEDE7FE);
-  static const Color primaryDark = Color(0xFF4A1FCC);
+  static const Color background = principal;
+  static const Color surface = terciaria;
+  static const Color primary = secundaria;
+  static const Color primaryLight = Color(0xFF202C55);
+  static const Color accent = ciano;
 
-  // ── Cor secundária (Verde — dinheiro / lucro) ──
-  static const Color accent = Color(0xFF00C853);
-  static const Color accentLight = Color(0xFFE8F5E9);
+  static const Color textPrimary = textoPrimaria;
+  static const Color textSecondary = textoSecundaria;
+  static const Color textHint = Color(0xFF5E6880);
 
-  // ── Texto ──
-  static const Color textPrimary = Color(0xFF1A1A2E);
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color textHint = Color(0xFF9CA3AF);
-
-  // ── Utilitários ──
-  static const Color divider = Color(0xFFE5E7EB);
-  static const Color error = Color(0xFFEF4444);
+  static const Color divider = Color(0xFF252B3D);
+  static const Color error = Color(0xFFFF4D6D);
   static const Color white = Color(0xFFFFFFFF);
 
-  // ── Gradiente de destaque para gráficos ──
   static const List<Color> chartGradient = [
-    Color(0xFF6C3FEE),
-    Color(0xFF9F7AEA),
+    secundaria,
+    ciano,
   ];
 }

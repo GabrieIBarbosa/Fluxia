@@ -21,10 +21,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for ios - '
@@ -57,6 +54,14 @@ class DefaultFirebaseOptions {
     authDomain: 'marketplace-manager-3f89a.firebaseapp.com',
     storageBucket: 'marketplace-manager-3f89a.firebasestorage.app',
     measurementId: 'G-M27DLD2NME',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyBFLxws2hbbp_k8MRtYC48mSINcS93DuY0',
+    appId: '1:66335158112:web:7b7d9de28986c73f65f805',
+    messagingSenderId: '66335158112',
+    projectId: 'marketplace-manager-3f89a',
+    storageBucket: 'marketplace-manager-3f89a.firebasestorage.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

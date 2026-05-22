@@ -1,4 +1,4 @@
-# Miscellaneous
+ï»¿# Miscellaneous
 *.class
 *.log
 *.pyc
@@ -11,6 +11,11 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.venv/
+.dart/
+
+*.md
+*.xlsx
 
 # IntelliJ related
 *.iml
@@ -32,6 +37,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+android/local.properties
 
 # Symbolication related
 app.*.symbols
@@ -44,8 +50,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Configurações do Firebase e Váriaveis
+# ConfiguraÃ§Ãµes do Firebase e VÃ¡riaveis
 *.json
 !firebase.json
+!web/manifest.json
 !pubspec.json
 .env
+

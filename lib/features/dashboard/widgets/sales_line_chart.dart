@@ -37,14 +37,8 @@ class SalesLineChart extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,7 +106,7 @@ class SalesLineChart extends StatelessWidget {
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
-                    color: AppColors.primary,
+                    color: AppColors.ciano,
                     barWidth: 3,
                     isStrokeCapRound: true,
                     dotData: FlDotData(
@@ -120,7 +114,7 @@ class SalesLineChart extends StatelessWidget {
                       getDotPainter: (spot, _, __, ___) =>
                           FlDotCirclePainter(
                         radius: 4,
-                        color: AppColors.primary,
+                        color: AppColors.ciano,
                         strokeWidth: 2,
                         strokeColor: AppColors.white,
                       ),
@@ -131,8 +125,8 @@ class SalesLineChart extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          AppColors.primary.withOpacity(0.25),
-                          AppColors.primary.withOpacity(0.0),
+                          AppColors.ciano.withOpacity(0.22),
+                          AppColors.ciano.withOpacity(0.0),
                         ],
                       ),
                     ),

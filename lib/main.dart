@@ -9,7 +9,7 @@ import 'core/constants/app_strings.dart';
 import 'core/services/admob_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/dashboard/screens/home_upload_screen.dart';
+import 'features/main/screens/main_shell_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +60,7 @@ class AuthGate extends ConsumerWidget {
           ),
         );
       case AuthStatus.authenticated:
-        return const HomeUploadScreen();
+        return const MainShellScreen();
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
         return const LoginScreen();
