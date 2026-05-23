@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/ai_mapper_service.dart';
 import '../../../core/services/excel_parser_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -130,7 +131,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   Future<void> pickAndProcessSpreadsheet() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: true,
       withData: true,
     );
@@ -178,7 +179,33 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         );
 
         final bytes = await _readFileBytes(file);
-        final summary = ExcelParserService.parseAndAggregate(bytes);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Identificando colunas com IA...',
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final sample = ExcelParserService.extractSampleRows(bytes, file.name);
+        final rawHeaders = sample['headers'] as List<String>? ?? [];
+        final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+        Map<String, String>? aiMap;
+        if (rawHeaders.isNotEmpty) {
+          aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+        }
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Processando ${file.name}...',
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
 
         if (uid == null) {
           final localId =
@@ -231,12 +258,10 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   }
 
   void setSpreadsheetSelected(String id, bool selected) {
-    final spreadsheets = selected
-        ? _selectOnly(state.spreadsheets, id)
-        : state.spreadsheets.map((sheet) {
-            if (sheet.id != id) return sheet;
-            return sheet.copyWith(selected: false);
-          }).toList();
+    final spreadsheets = state.spreadsheets.map((sheet) {
+      if (sheet.id != id) return sheet;
+      return sheet.copyWith(selected: selected);
+    }).toList();
 
     state = _stateFromSpreadsheets(spreadsheets);
   }
@@ -244,7 +269,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   Future<void> updateSpreadsheet(String id) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: false,
       withData: true,
     );
@@ -266,14 +291,40 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     try {
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Atualizando ${file.name}...',
+        loadingMessage: 'Processando ${file.name}...',
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
       );
 
       final bytes = await _readFileBytes(file);
-      final summary = ExcelParserService.parseAndAggregate(bytes);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Identificando colunas com IA...',
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final sample = ExcelParserService.extractSampleRows(bytes, file.name);
+      final rawHeaders = sample['headers'] as List<String>? ?? [];
+      final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+      Map<String, String>? aiMap;
+      if (rawHeaders.isNotEmpty) {
+        aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+      }
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Processando ${file.name}...',
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
 
       if (uid != null) {
         await FirestoreService.updateExcelSummary(
@@ -313,18 +364,21 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     final target = state.spreadsheets.where((e) => e.id == id).toList();
     if (target.isEmpty) return;
 
-    if (uid != null) {
-      await FirestoreService.deletePlanilha(uid!, id);
-    }
-
     final remaining = state.spreadsheets.where((e) => e.id != id).toList();
 
     if (remaining.isEmpty) {
       state = const SpreadsheetDataState(status: SpreadsheetStatus.empty);
-      return;
+    } else {
+      state = _stateFromSpreadsheets(remaining);
     }
 
-    state = _stateFromSpreadsheets(remaining);
+    if (uid != null) {
+      try {
+        await FirestoreService.deletePlanilha(uid!, id);
+      } catch (e) {
+        // Ignorar erro no UI, mas manter fallback se precisar
+      }
+    }
   }
 
   Future<void> renameSpreadsheet(String id, String newName) async {
@@ -361,41 +415,21 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   SpreadsheetDataState _stateFromSpreadsheets(
     List<ImportedSpreadsheet> spreadsheets,
   ) {
-    final normalized = _normalizeSingleSelection(spreadsheets);
-    final selected = normalized.where((sheet) => sheet.selected).toList();
+    final selected = spreadsheets.where((sheet) => sheet.selected).toList();
 
     final activeData = selected.isEmpty ? null : _combineSummaries(selected);
 
     return SpreadsheetDataState(
-      status: normalized.isEmpty
+      status: spreadsheets.isEmpty
           ? SpreadsheetStatus.empty
           : SpreadsheetStatus.loaded,
-      spreadsheets: normalized,
+      spreadsheets: spreadsheets,
       activeSpreadsheetId: selected.isEmpty ? null : selected.first.id,
       activeData: activeData,
     );
   }
 
-  List<ImportedSpreadsheet> _selectOnly(
-    List<ImportedSpreadsheet> spreadsheets,
-    String id,
-  ) {
-    return spreadsheets
-        .map((sheet) => sheet.copyWith(selected: sheet.id == id))
-        .toList();
-  }
 
-  List<ImportedSpreadsheet> _normalizeSingleSelection(
-    List<ImportedSpreadsheet> spreadsheets,
-  ) {
-    var hasSelected = false;
-    return spreadsheets.map((sheet) {
-      if (!sheet.selected) return sheet;
-      if (hasSelected) return sheet.copyWith(selected: false);
-      hasSelected = true;
-      return sheet;
-    }).toList();
-  }
 
   SpreadsheetAggregatedData _combineSummaries(
     List<ImportedSpreadsheet> selected,

@@ -1,6 +1,8 @@
 // lib/core/services/excel_parser_service.dart
 
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../constants/app_config.dart';
 
@@ -218,6 +220,33 @@ class SpreadsheetAggregatedData {
 }
 
 class ExcelParserService {
+  static Map<String, dynamic> extractSampleRows(Uint8List bytes, String fileName) {
+    List<List<dynamic>> rows;
+
+    if (fileName.toLowerCase().endsWith('.csv')) {
+      final text = utf8.decode(bytes, allowMalformed: true);
+      final separator = text.contains(';') && text.split(';').length > text.split(',').length ? ';' : ',';
+      rows = const CsvToListConverter().convert(text, fieldDelimiter: separator, eol: '\n');
+      if (rows.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+    } else {
+      final excel = Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+      final sheet = excel.tables.values.first;
+      if (sheet.rows.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+      rows = sheet.rows.map((row) => row.map((e) => e?.value ?? '').toList()).toList();
+    }
+
+    final header = rows.first.map((e) => e.toString().trim()).toList();
+    final sample = rows.skip(1).take(3).map(
+      (row) => row.map((e) => e.toString().trim()).toList()
+    ).toList();
+
+    return {
+      'headers': header,
+      'rows': sample,
+    };
+  }
+
   static const List<String> _monthNames = [
     'Jan',
     'Fev',
@@ -254,20 +283,29 @@ class ExcelParserService {
     return '$name/$year';
   }
 
-  static SpreadsheetAggregatedData parseAndAggregate(Uint8List bytes) {
-    final excel = Excel.decodeBytes(bytes);
-    if (excel.tables.isEmpty) {
-      throw Exception('Arquivo XLSX vazio ou inválido.');
+  static SpreadsheetAggregatedData parseAndAggregate(Uint8List bytes, String fileName, [Map<String, String>? aiColumnMap]) {
+    List<List<dynamic>> rows;
+
+    if (fileName.toLowerCase().endsWith('.csv')) {
+      final text = utf8.decode(bytes, allowMalformed: true);
+      final separator = text.contains(';') && text.split(';').length > text.split(',').length ? ';' : ',';
+      rows = const CsvToListConverter().convert(text, fieldDelimiter: separator, eol: '\n');
+      if (rows.isEmpty) throw Exception('A planilha não possui linhas.');
+    } else {
+      final excel = Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) throw Exception('Arquivo XLSX vazio ou inválido.');
+      final sheet = excel.tables.values.first;
+      if (sheet.rows.isEmpty) throw Exception('A planilha não possui linhas.');
+      rows = sheet.rows.map((row) => row.map((e) => e?.value).toList()).toList();
     }
 
-    final sheet = excel.tables.values.first;
-    if (sheet.rows.isEmpty) {
-      throw Exception('A planilha não possui linhas.');
-    }
-
-    final header = sheet.rows.first
-        .map((e) => (e?.value ?? '').toString().trim())
+    var header = rows.first
+        .map((e) => (e ?? '').toString().trim())
         .toList();
+
+    if (aiColumnMap != null && aiColumnMap.isNotEmpty) {
+      header = header.map((col) => aiColumnMap[col] ?? col).toList();
+    }
 
     final missing = AppConfig.requiredSpreadsheetColumns
         .where((col) => !header.contains(col))
@@ -308,13 +346,13 @@ class ExcelParserService {
 
     final records = <SaleRecord>[];
 
-    for (int i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
+    for (int i = 1; i < rows.length; i++) {
+      final row = rows[i];
       if (row.isEmpty) continue;
 
       String textAt(int index) {
         if (index < 0 || index >= row.length) return '';
-        return (row[index]?.value ?? '').toString().trim();
+        return (row[index] ?? '').toString().trim();
       }
 
       final produto = textAt(idxProduto);
@@ -357,9 +395,9 @@ class ExcelParserService {
     return aggregateRecords(records);
   }
 
-  static dynamic indexValue(List<Data?> row, int index) {
+  static dynamic indexValue(List<dynamic> row, int index) {
     if (index < 0 || index >= row.length) return null;
-    return row[index]?.value;
+    return row[index];
   }
 
   static SpreadsheetAggregatedData aggregateRecords(List<SaleRecord> records) {

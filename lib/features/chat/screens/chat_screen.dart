@@ -192,8 +192,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final suggestions = <String>[
       if (hasData) ...[
         'Qual é o faturamento total da planilha ativa?',
-        'Qual é o lucro total e a margem de lucro?',
-        'Quantos pedidos completed existem?',
+        'Qual foi o faturamento de ${data.mesReferenciaLabel ?? "este mês"}?',
+        'Quantos pedidos concluídos existem?',
+        'Qual o lucro líquido total?',
         'Quantas devoluções existem nessa planilha?',
         'Quais são os top 10 produtos mais vendidos?',
         'Quais são os top 10 anúncios mais vendidos?',

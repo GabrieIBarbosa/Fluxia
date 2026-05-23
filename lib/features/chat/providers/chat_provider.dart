@@ -166,7 +166,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           'Você é um consultor de e-commerce do app Fluxia. '
           'Responda usando apenas os dados da planilha ativa do usuário. '
           'Se não houver planilha ativa, oriente o usuário a importar e selecionar uma planilha XLSX. '
-          'Considere os seguintes KPIs pré-processados: pedidos completed, pedidos de devolução, faturamento total, lucro total, lucro percentual, ticket médio, top 10 produtos e top 10 anúncios. '
+          'Considere os seguintes KPIs pré-processados: pedidos concluídos, pedidos de devolução, faturamento total, lucro total, lucro percentual, ticket médio, top 10 produtos e top 10 anúncios. '
           'Dados disponíveis agora: $resumoJson',
         ),
       );
