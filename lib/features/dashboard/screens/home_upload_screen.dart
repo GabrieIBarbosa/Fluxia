@@ -88,7 +88,7 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
               Text(
                 isLoading
                     ? AppStrings.loadingMessages[_loadingMessageIndex]
-                    : 'Toque para importar um relatório XLSX\nMercado Livre ou Shopee • Até 8MB',
+                    : 'Toque para importar um relatório XLSX ou CSV\nMercado Livre, Shopee ou genérico • Até 8MB',
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 textAlign: TextAlign.center,
               ),
@@ -163,10 +163,10 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
               ),
               const SizedBox(height: 9),
               const Text(
-                'XLSX',
+                'XLSX / CSV',
                 style: TextStyle(
                   color: AppColors.white,
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -375,10 +375,10 @@ class _SpreadsheetTile extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'XLSX',
+                'PLANILHA',
                 style: TextStyle(
                   color: AppColors.white,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                 ),
               ),

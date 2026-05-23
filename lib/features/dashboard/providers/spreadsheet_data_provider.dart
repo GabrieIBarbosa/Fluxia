@@ -131,7 +131,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   Future<void> pickAndProcessSpreadsheet() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: true,
       withData: true,
     );
@@ -188,7 +188,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
           activeData: state.activeData,
         );
 
-        final sample = ExcelParserService.extractSampleRows(bytes);
+        final sample = ExcelParserService.extractSampleRows(bytes, file.name);
         final rawHeaders = sample['headers'] as List<String>? ?? [];
         final rawRows = sample['rows'] as List<List<String>>? ?? [];
 
@@ -205,7 +205,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
           activeData: state.activeData,
         );
 
-        final summary = ExcelParserService.parseAndAggregate(bytes, aiMap);
+        final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
 
         if (uid == null) {
           final localId =
@@ -269,7 +269,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   Future<void> updateSpreadsheet(String id) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: false,
       withData: true,
     );
@@ -291,7 +291,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     try {
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Atualizando ${file.name}...',
+        loadingMessage: 'Processando ${file.name}...',
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
@@ -307,7 +307,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         activeData: state.activeData,
       );
 
-      final sample = ExcelParserService.extractSampleRows(bytes);
+      final sample = ExcelParserService.extractSampleRows(bytes, file.name);
       final rawHeaders = sample['headers'] as List<String>? ?? [];
       final rawRows = sample['rows'] as List<List<String>>? ?? [];
 
@@ -324,7 +324,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         activeData: state.activeData,
       );
 
-      final summary = ExcelParserService.parseAndAggregate(bytes, aiMap);
+      final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
 
       if (uid != null) {
         await FirestoreService.updateExcelSummary(

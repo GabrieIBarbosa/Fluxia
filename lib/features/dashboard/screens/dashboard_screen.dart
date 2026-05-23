@@ -75,7 +75,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 value: data.faturamentoTotal,
                 icon: Icons.trending_up_rounded,
                 subtitle: 'Resumo consolidado das planilhas selecionadas',
-                badge: 'XLSX',
+                badge: 'PLANILHA',
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -848,7 +848,7 @@ class _EmptyDashboard extends StatelessWidget {
             Text(
               hasFiles
                   ? 'Escolha uma ou mais planilhas acima para exibir os KPIs processados.'
-                  : 'Importe um XLSX na aba Home para visualizar faturamento, lucro, pedidos concluídos, devoluções e rankings.',
+                  : 'Importe um XLSX ou CSV na aba Home para visualizar faturamento, lucro, pedidos concluídos, devoluções e rankings.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               textAlign: TextAlign.center,
             ),
