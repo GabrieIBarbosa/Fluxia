@@ -17,7 +17,7 @@ enum DashboardKpi {
   lucro('Lucro', AppColors.ciano),
   lucroPercentual('Lucro %', AppColors.primary),
   ticketMedio('Ticket Medio', AppColors.secundaria),
-  pedidosCompleted('Pedidos Completed', AppColors.ciano),
+  pedidosCompleted('Pedidos Concluídos', AppColors.ciano),
   devolucoes('Devolucoes', AppColors.error);
 
   final String label;
@@ -86,7 +86,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       value: currency.format(data.lucroTotal),
                       icon: Icons.attach_money_rounded,
                       accentColor: AppColors.ciano,
-                      caption: 'Somente pedidos completed',
+                      caption: 'Somente pedidos concluídos',
                     ),
                     MiniKpiCard(
                       label: 'Lucro %',
@@ -107,10 +107,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       value: currency.format(data.ticketMedio),
                       icon: Icons.sell_outlined,
                       accentColor: AppColors.secundaria,
-                      caption: 'Faturamento / completed',
+                      caption: 'Faturamento / concluídos',
                     ),
                     MiniKpiCard(
-                      label: 'Pedidos Completed',
+                      label: 'Pedidos Concluídos',
                       value: '${data.pedidosCompleted}',
                       icon: Icons.check_circle_outline_rounded,
                       accentColor: AppColors.ciano,
@@ -341,8 +341,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         );
       case DashboardKpi.pedidosCompleted:
         return _KpiChartConfig(
-          title: 'Pedidos Completed por Mes',
-          legendLabel: 'Pedidos Completed',
+          title: 'Pedidos Concluídos por Mês',
+          legendLabel: 'Pedidos Concluídos',
           color: DashboardKpi.pedidosCompleted.color,
           formatValue: (value) => value.toStringAsFixed(0),
         );
@@ -646,7 +646,7 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _SummaryPill(
-                  label: 'Completed',
+                  label: 'Pedidos Concluídos',
                   value: '${data.pedidosCompleted}',
                   icon: Icons.done_all_rounded,
                   color: AppColors.ciano,
@@ -848,7 +848,7 @@ class _EmptyDashboard extends StatelessWidget {
             Text(
               hasFiles
                   ? 'Escolha uma ou mais planilhas acima para exibir os KPIs processados.'
-                  : 'Importe um XLSX na aba Home para visualizar faturamento, lucro, pedidos completed, devoluções e rankings.',
+                  : 'Importe um XLSX na aba Home para visualizar faturamento, lucro, pedidos concluídos, devoluções e rankings.',
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               textAlign: TextAlign.center,
             ),

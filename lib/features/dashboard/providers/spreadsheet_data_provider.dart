@@ -231,12 +231,10 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   }
 
   void setSpreadsheetSelected(String id, bool selected) {
-    final spreadsheets = selected
-        ? _selectOnly(state.spreadsheets, id)
-        : state.spreadsheets.map((sheet) {
-            if (sheet.id != id) return sheet;
-            return sheet.copyWith(selected: false);
-          }).toList();
+    final spreadsheets = state.spreadsheets.map((sheet) {
+      if (sheet.id != id) return sheet;
+      return sheet.copyWith(selected: selected);
+    }).toList();
 
     state = _stateFromSpreadsheets(spreadsheets);
   }
@@ -313,18 +311,21 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     final target = state.spreadsheets.where((e) => e.id == id).toList();
     if (target.isEmpty) return;
 
-    if (uid != null) {
-      await FirestoreService.deletePlanilha(uid!, id);
-    }
-
     final remaining = state.spreadsheets.where((e) => e.id != id).toList();
 
     if (remaining.isEmpty) {
       state = const SpreadsheetDataState(status: SpreadsheetStatus.empty);
-      return;
+    } else {
+      state = _stateFromSpreadsheets(remaining);
     }
 
-    state = _stateFromSpreadsheets(remaining);
+    if (uid != null) {
+      try {
+        await FirestoreService.deletePlanilha(uid!, id);
+      } catch (e) {
+        // Ignorar erro no UI, mas manter fallback se precisar
+      }
+    }
   }
 
   Future<void> renameSpreadsheet(String id, String newName) async {
@@ -361,41 +362,21 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   SpreadsheetDataState _stateFromSpreadsheets(
     List<ImportedSpreadsheet> spreadsheets,
   ) {
-    final normalized = _normalizeSingleSelection(spreadsheets);
-    final selected = normalized.where((sheet) => sheet.selected).toList();
+    final selected = spreadsheets.where((sheet) => sheet.selected).toList();
 
     final activeData = selected.isEmpty ? null : _combineSummaries(selected);
 
     return SpreadsheetDataState(
-      status: normalized.isEmpty
+      status: spreadsheets.isEmpty
           ? SpreadsheetStatus.empty
           : SpreadsheetStatus.loaded,
-      spreadsheets: normalized,
+      spreadsheets: spreadsheets,
       activeSpreadsheetId: selected.isEmpty ? null : selected.first.id,
       activeData: activeData,
     );
   }
 
-  List<ImportedSpreadsheet> _selectOnly(
-    List<ImportedSpreadsheet> spreadsheets,
-    String id,
-  ) {
-    return spreadsheets
-        .map((sheet) => sheet.copyWith(selected: sheet.id == id))
-        .toList();
-  }
 
-  List<ImportedSpreadsheet> _normalizeSingleSelection(
-    List<ImportedSpreadsheet> spreadsheets,
-  ) {
-    var hasSelected = false;
-    return spreadsheets.map((sheet) {
-      if (!sheet.selected) return sheet;
-      if (hasSelected) return sheet.copyWith(selected: false);
-      hasSelected = true;
-      return sheet;
-    }).toList();
-  }
 
   SpreadsheetAggregatedData _combineSummaries(
     List<ImportedSpreadsheet> selected,
