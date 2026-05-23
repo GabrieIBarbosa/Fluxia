@@ -218,6 +218,23 @@ class SpreadsheetAggregatedData {
 }
 
 class ExcelParserService {
+  static Map<String, dynamic> extractSampleRows(Uint8List bytes) {
+    final excel = Excel.decodeBytes(bytes);
+    if (excel.tables.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+    final sheet = excel.tables.values.first;
+    if (sheet.rows.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+
+    final header = sheet.rows.first.map((e) => (e?.value ?? '').toString().trim()).toList();
+    final sample = sheet.rows.skip(1).take(3).map(
+      (row) => row.map((e) => (e?.value ?? '').toString().trim()).toList()
+    ).toList();
+
+    return {
+      'headers': header,
+      'rows': sample,
+    };
+  }
+
   static const List<String> _monthNames = [
     'Jan',
     'Fev',
@@ -254,7 +271,7 @@ class ExcelParserService {
     return '$name/$year';
   }
 
-  static SpreadsheetAggregatedData parseAndAggregate(Uint8List bytes) {
+  static SpreadsheetAggregatedData parseAndAggregate(Uint8List bytes, [Map<String, String>? aiColumnMap]) {
     final excel = Excel.decodeBytes(bytes);
     if (excel.tables.isEmpty) {
       throw Exception('Arquivo XLSX vazio ou inválido.');
@@ -265,9 +282,13 @@ class ExcelParserService {
       throw Exception('A planilha não possui linhas.');
     }
 
-    final header = sheet.rows.first
+    var header = sheet.rows.first
         .map((e) => (e?.value ?? '').toString().trim())
         .toList();
+
+    if (aiColumnMap != null && aiColumnMap.isNotEmpty) {
+      header = header.map((col) => aiColumnMap[col] ?? col).toList();
+    }
 
     final missing = AppConfig.requiredSpreadsheetColumns
         .where((col) => !header.contains(col))

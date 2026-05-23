@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/ai_mapper_service.dart';
 import '../../../core/services/excel_parser_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -178,7 +179,33 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         );
 
         final bytes = await _readFileBytes(file);
-        final summary = ExcelParserService.parseAndAggregate(bytes);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Identificando colunas com IA...',
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final sample = ExcelParserService.extractSampleRows(bytes);
+        final rawHeaders = sample['headers'] as List<String>? ?? [];
+        final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+        Map<String, String>? aiMap;
+        if (rawHeaders.isNotEmpty) {
+          aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+        }
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Processando ${file.name}...',
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final summary = ExcelParserService.parseAndAggregate(bytes, aiMap);
 
         if (uid == null) {
           final localId =
@@ -271,7 +298,33 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       );
 
       final bytes = await _readFileBytes(file);
-      final summary = ExcelParserService.parseAndAggregate(bytes);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Identificando colunas com IA...',
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final sample = ExcelParserService.extractSampleRows(bytes);
+      final rawHeaders = sample['headers'] as List<String>? ?? [];
+      final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+      Map<String, String>? aiMap;
+      if (rawHeaders.isNotEmpty) {
+        aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+      }
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Processando ${file.name}...',
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final summary = ExcelParserService.parseAndAggregate(bytes, aiMap);
 
       if (uid != null) {
         await FirestoreService.updateExcelSummary(
