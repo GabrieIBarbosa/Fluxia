@@ -97,12 +97,50 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
             ],
           ),
         ),
-        if (isLoading)
+                if (isLoading)
           Positioned.fill(
             child: Container(
               color: AppColors.background.withOpacity(0.8),
-              child: const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 64,
+                          height: 64,
+                          child: CircularProgressIndicator(
+                            value: spreadsheetState.loadingProgress,
+                            color: AppColors.primary,
+                            strokeWidth: 5,
+                            backgroundColor: AppColors.primary.withOpacity(0.2),
+                          ),
+                        ),
+                        if (spreadsheetState.loadingProgress != null)
+                          Text(
+                            '$\{(spreadsheetState.loadingProgress! * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      spreadsheetState.loadingMessage.isNotEmpty
+                          ? spreadsheetState.loadingMessage
+                          : AppStrings.loadingMessages[_loadingMessageIndex],
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

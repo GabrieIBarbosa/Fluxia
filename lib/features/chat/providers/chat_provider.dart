@@ -169,7 +169,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ),
       );
 
-      final chat = model.startChat(history: const []);
+      final chat = model.startChat(history: []);
       final response = await chat.sendMessage(Content.text(pergunta));
       final resposta = response.text ?? 'Nao consegui gerar uma resposta.';
 

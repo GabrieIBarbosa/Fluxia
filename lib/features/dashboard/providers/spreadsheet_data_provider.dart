@@ -54,6 +54,7 @@ class SpreadsheetDataState {
   final SpreadsheetAggregatedData? activeData;
   final String? errorMessage;
   final String loadingMessage;
+  final double? loadingProgress;
   final List<ImportedSpreadsheet> spreadsheets;
   final String? activeSpreadsheetId;
 
@@ -62,6 +63,7 @@ class SpreadsheetDataState {
     this.activeData,
     this.errorMessage,
     this.loadingMessage = '',
+    this.loadingProgress,
     this.spreadsheets = const [],
     this.activeSpreadsheetId,
   });
@@ -174,7 +176,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
-          loadingMessage: 'Processando ${file.name}...',
+          loadingMessage: 'Processando \...',
+          loadingProgress: 0.1,
           spreadsheets: [...imported, ...oldSheets],
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
@@ -192,6 +195,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
           state = SpreadsheetDataState(
             status: SpreadsheetStatus.loading,
             loadingMessage: 'Identificando colunas com IA...',
+            loadingProgress: 0.6,
             spreadsheets: [...imported, ...oldSheets],
             activeSpreadsheetId: state.activeSpreadsheetId,
             activeData: state.activeData,
@@ -201,7 +205,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
-          loadingMessage: 'Processando ${file.name}...',
+          loadingMessage: 'Processando \...',
+          loadingProgress: 0.8,
           spreadsheets: [...imported, ...oldSheets],
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
@@ -301,7 +306,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     try {
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Processando ${file.name}...',
+        loadingMessage: 'Processando \...',
+        loadingProgress: 0.1,
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
@@ -319,6 +325,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
           loadingMessage: 'Identificando colunas com IA...',
+          loadingProgress: 0.6,
           spreadsheets: state.spreadsheets,
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
@@ -328,7 +335,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Processando ${file.name}...',
+        loadingMessage: 'Processando \...',
+        loadingProgress: 0.8,
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
