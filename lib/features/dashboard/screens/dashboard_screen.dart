@@ -172,6 +172,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     item.key: item.value,
                 },
               ),
+              if (data.top10ProdutosDevolvidos.isNotEmpty)
+                TopProductsCard(
+                  title: 'Top produtos devolvidos',
+                  subtitle: 'Ordenado por quantidade de devolucoes',
+                  topItems: data.top10ProdutosDevolvidos,
+                  itemRevenue: const {},
+                ),
               TopProductsCard(
                 title: 'Top 10 Anúncios mais vendidos',
                 subtitle: 'Agrupado por Tipo Anúncio, com fallback em SKU',
@@ -494,10 +501,47 @@ class _SpreadsheetSelector extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: state.spreadsheets.length,
+        itemCount: state.spreadsheets.length + 1,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
-          final spreadsheet = state.spreadsheets[index];
+          if (index == 0) {
+            return FilterChip(
+              selected: state.allSelected,
+              onSelected: (value) => ref
+                  .read(spreadsheetDataProvider.notifier)
+                  .setAllSpreadsheetsSelected(value),
+              showCheckmark: false,
+              avatar: Icon(
+                state.allSelected
+                    ? Icons.done_all_rounded
+                    : Icons.select_all_rounded,
+                size: 16,
+                color: state.allSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+              ),
+              label: const Text('Todas'),
+              labelStyle: theme.textTheme.bodyMedium?.copyWith(
+                color: state.allSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+              backgroundColor: AppColors.background,
+              selectedColor: AppColors.primaryLight,
+              side: BorderSide(
+                color: state.allSelected
+                    ? AppColors.primary
+                    : AppColors.divider,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            );
+          }
+
+          final sheetIndex = index - 1;
+          final spreadsheet = state.spreadsheets[sheetIndex];
 
           return FilterChip(
             selected: spreadsheet.selected,

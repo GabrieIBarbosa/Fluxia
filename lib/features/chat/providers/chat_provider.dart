@@ -101,6 +101,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> sendMessage(String pergunta) async {
     if (pergunta.trim().isEmpty) return;
+    if (state.perguntasDisponiveis <= 0) {
+      state = state.copyWith(
+        errorMessage: 'Assista a um video para liberar novas perguntas.',
+      );
+      return;
+    }
 
     final uid = _ref.read(authProvider).user?.uid;
 
@@ -150,30 +156,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
               'ha_planilha_ativa': false,
             };
 
-      final List<Content> chatHistory = [];
-      for (final m in state.messages.take(12)) {
-        if (m.isUser) {
-          chatHistory.add(Content.text(m.content));
-        } else {
-          chatHistory.add(Content.model([TextPart(m.content)]));
-        }
-      }
-
       final ai = FirebaseAI.vertexAI();
       final model = ai.generativeModel(
         model: 'gemini-2.5-flash',
         systemInstruction: Content.system(
-          'Você é um consultor de e-commerce do app Fluxia. '
-          'Responda usando apenas os dados da planilha ativa do usuário. '
-          'Se não houver planilha ativa, oriente o usuário a importar e selecionar uma planilha XLSX. '
-          'Considere os seguintes KPIs pré-processados: pedidos concluídos, pedidos de devolução, faturamento total, lucro total, lucro percentual, ticket médio, top 10 produtos e top 10 anúncios. '
-          'Dados disponíveis agora: $resumoJson',
+          'Voce e um consultor de e-commerce do app Fluxia. '
+          'Responda usando apenas o JSON de dados disponiveis agora; ignore qualquer dado de mensagens antigas. '
+          'Se nao houver planilha ativa, diga que nao ha dados selecionados e oriente o usuario a importar ou selecionar planilhas XLSX/CSV. '
+          'Considere os KPIs pre-processados: pedidos concluidos, devolucoes, faturamento, lucro, ticket medio, top produtos, produtos devolvidos e top anuncios. '
+          'Para perguntas sobre produtos devolvidos, use top_10_produtos_devolvidos quando houver dados; se estiver vazio, explique que so existe o total de devolucoes. '
+          'Dados disponiveis agora: $resumoJson',
         ),
       );
 
-      final chat = model.startChat(history: chatHistory);
+      final chat = model.startChat(history: const []);
       final response = await chat.sendMessage(Content.text(pergunta));
-      final resposta = response.text ?? 'Não consegui gerar uma resposta.';
+      final resposta = response.text ?? 'Nao consegui gerar uma resposta.';
 
       if (uid != null) {
         await FirestoreService.saveChatMessage(uid, 'ia', resposta);

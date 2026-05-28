@@ -404,7 +404,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildInputBar(ChatState chatState) {
-    final canSend = !chatState.isLoading;
+    final canSend = !chatState.isLoading && chatState.perguntasDisponiveis > 0;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
@@ -423,9 +423,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               maxLines: null,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                hintText: canSend
-                    ? AppStrings.chatHint
-                    : 'Aguarde a resposta da IA...',
+                hintText: chatState.perguntasDisponiveis <= 0
+                    ? 'Assista a um video para liberar perguntas'
+                    : canSend
+                        ? AppStrings.chatHint
+                        : 'Aguarde a resposta da IA...',
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,

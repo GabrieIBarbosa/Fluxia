@@ -22,6 +22,7 @@ SpreadsheetAggregatedData _summary({
     ticketMedio: ticketMedio,
     top10Produtos: const <MapEntry<String, int>>[],
     top10ProdutosReceita: const <MapEntry<String, double>>[],
+    top10ProdutosDevolvidos: const <MapEntry<String, int>>[],
     top10Anuncios: const <MapEntry<String, int>>[],
     top10AnunciosReceita: const <MapEntry<String, double>>[],
     mesReferencia: null,
@@ -33,7 +34,7 @@ SpreadsheetAggregatedData _summary({
 }
 
 void main() {
-  test('setSpreadsheetSelected keeps a single active sheet', () {
+  test('setSpreadsheetSelected combines multiple selected sheets', () {
     final notifier = SpreadsheetDataNotifier(uid: null);
     final sheet1 = ImportedSpreadsheet(
       id: 's1',
@@ -71,17 +72,17 @@ void main() {
     notifier.setSpreadsheetSelected('s2', true);
 
     final active = notifier.state.activeData!;
-    expect(active.faturamentoTotal, 200.0);
-    expect(active.lucroTotal, 30.0);
-    expect(active.pedidosCompleted, 3);
-    expect(active.pedidosDevolucao, 0);
-    expect(notifier.state.activeSpreadsheetId, 's2');
-    expect(notifier.state.selectedCount, 1);
-    expect(notifier.state.spreadsheets.first.selected, isFalse);
+    expect(active.faturamentoTotal, 300.0);
+    expect(active.lucroTotal, 40.0);
+    expect(active.pedidosCompleted, 5);
+    expect(active.pedidosDevolucao, 1);
+    expect(notifier.state.activeSpreadsheetId, 's1');
+    expect(notifier.state.selectedCount, 2);
+    expect(notifier.state.spreadsheets.first.selected, isTrue);
     expect(notifier.state.spreadsheets.last.selected, isTrue);
   });
 
-  test('normalizes multiple selected sheets to the first selected sheet', () {
+  test('setAllSpreadsheetsSelected toggles every sheet', () {
     final notifier = SpreadsheetDataNotifier(uid: null);
     final sheet1 = ImportedSpreadsheet(
       id: 's1',
@@ -115,13 +116,20 @@ void main() {
       spreadsheets: [sheet1, sheet2],
     );
 
-    notifier.setSpreadsheetSelected('s1', true);
+    notifier.setAllSpreadsheetsSelected(false);
+
+    expect(notifier.state.activeData, isNull);
+    expect(notifier.state.activeSpreadsheetId, isNull);
+    expect(notifier.state.selectedCount, 0);
+    expect(notifier.state.spreadsheets.first.selected, isFalse);
+    expect(notifier.state.spreadsheets.last.selected, isFalse);
+
+    notifier.setAllSpreadsheetsSelected(true);
 
     expect(notifier.state.activeData, isNotNull);
     expect(notifier.state.activeSpreadsheetId, 's1');
-    expect(notifier.state.selectedCount, 1);
-    expect(notifier.state.spreadsheets.first.selected, isTrue);
-    expect(notifier.state.spreadsheets.last.selected, isFalse);
+    expect(notifier.state.selectedCount, 2);
+    expect(notifier.state.allSelected, isTrue);
   });
 
   test('deselecting active sheet clears active data', () {

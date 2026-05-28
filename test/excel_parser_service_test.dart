@@ -126,6 +126,28 @@ void main() {
     expect(summary.faturamentoTotal, closeTo(100.0, 0.001));
     expect(summary.lucroTotal, closeTo(20.0, 0.001));
     expect(summary.ticketMedio, closeTo(100.0, 0.001));
+    expect(summary.top10ProdutosDevolvidos.single.key, 'Produto B');
+    expect(summary.top10ProdutosDevolvidos.single.value, 1);
+  });
+
+  test('parseAndAggregate accepts generic headers without AI mapping', () {
+    final bytes = _buildExcelBytes(
+      headers: const ['product', 'qty', 'total', 'status'],
+      rows: [
+        [
+          TextCellValue('Produto Generico'),
+          IntCellValue(2),
+          DoubleCellValue(80.0),
+          TextCellValue('COMPLETED'),
+        ],
+      ],
+    );
+
+    final summary = ExcelParserService.parseAndAggregate(bytes);
+
+    expect(summary.pedidosCompleted, 1);
+    expect(summary.faturamentoTotal, closeTo(80.0, 0.001));
+    expect(summary.top10Produtos.single.key, 'Produto Generico');
   });
 
   test('parseAndAggregate preserves comma decimals in pt-BR numbers', () {

@@ -16,6 +16,7 @@ SpreadsheetAggregatedData _summary() {
     ticketMedio: 50.0,
     top10Produtos: const <MapEntry<String, int>>[],
     top10ProdutosReceita: const <MapEntry<String, double>>[],
+    top10ProdutosDevolvidos: const <MapEntry<String, int>>[],
     top10Anuncios: const <MapEntry<String, int>>[],
     top10AnunciosReceita: const <MapEntry<String, double>>[],
     mesReferencia: '2024-05',

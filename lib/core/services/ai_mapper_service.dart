@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:firebase_vertexai/firebase_vertexai.dart';
+import 'package:firebase_ai/firebase_ai.dart';
 import '../constants/app_config.dart';
 
 class AiMapperService {

@@ -213,6 +213,29 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
                   ),
                 ),
               ),
+              if (items.isNotEmpty) ...[
+                Checkbox(
+                  value: spreadsheetState.allSelected,
+                  tristate: spreadsheetState.selectedCount > 0 &&
+                      !spreadsheetState.allSelected,
+                  onChanged: (value) => ref
+                      .read(spreadsheetDataProvider.notifier)
+                      .setAllSpreadsheetsSelected(value ?? false),
+                  activeColor: AppColors.primary,
+                  checkColor: AppColors.white,
+                  side: const BorderSide(color: AppColors.divider),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Todas',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 7),

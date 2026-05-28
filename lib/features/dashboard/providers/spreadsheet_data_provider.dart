@@ -69,6 +69,8 @@ class SpreadsheetDataState {
   int get selectedCount => spreadsheets.where((sheet) => sheet.selected).length;
 
   bool get hasSpreadsheets => spreadsheets.isNotEmpty;
+
+  bool get allSelected => spreadsheets.isNotEmpty && selectedCount == spreadsheets.length;
 }
 
 class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
@@ -180,20 +182,20 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         final bytes = await _readFileBytes(file);
 
-        state = SpreadsheetDataState(
-          status: SpreadsheetStatus.loading,
-          loadingMessage: 'Identificando colunas com IA...',
-          spreadsheets: [...imported, ...oldSheets],
-          activeSpreadsheetId: state.activeSpreadsheetId,
-          activeData: state.activeData,
-        );
-
         final sample = ExcelParserService.extractSampleRows(bytes, file.name);
         final rawHeaders = sample['headers'] as List<String>? ?? [];
         final rawRows = sample['rows'] as List<List<String>>? ?? [];
 
-        Map<String, String>? aiMap;
-        if (rawHeaders.isNotEmpty) {
+        Map<String, String>? aiMap = ExcelParserService.localColumnMapping(rawHeaders);
+        if (rawHeaders.isNotEmpty &&
+            !ExcelParserService.canMapLocally(rawHeaders)) {
+          state = SpreadsheetDataState(
+            status: SpreadsheetStatus.loading,
+            loadingMessage: 'Identificando colunas com IA...',
+            spreadsheets: [...imported, ...oldSheets],
+            activeSpreadsheetId: state.activeSpreadsheetId,
+            activeData: state.activeData,
+          );
           aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
         }
 
@@ -266,6 +268,14 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     state = _stateFromSpreadsheets(spreadsheets);
   }
 
+  void setAllSpreadsheetsSelected(bool selected) {
+    final spreadsheets = state.spreadsheets
+        .map((sheet) => sheet.copyWith(selected: selected))
+        .toList();
+
+    state = _stateFromSpreadsheets(spreadsheets);
+  }
+
   Future<void> updateSpreadsheet(String id) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -299,20 +309,20 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
       final bytes = await _readFileBytes(file);
 
-      state = SpreadsheetDataState(
-        status: SpreadsheetStatus.loading,
-        loadingMessage: 'Identificando colunas com IA...',
-        spreadsheets: state.spreadsheets,
-        activeSpreadsheetId: state.activeSpreadsheetId,
-        activeData: state.activeData,
-      );
-
       final sample = ExcelParserService.extractSampleRows(bytes, file.name);
       final rawHeaders = sample['headers'] as List<String>? ?? [];
       final rawRows = sample['rows'] as List<List<String>>? ?? [];
 
-      Map<String, String>? aiMap;
-      if (rawHeaders.isNotEmpty) {
+      Map<String, String>? aiMap = ExcelParserService.localColumnMapping(rawHeaders);
+      if (rawHeaders.isNotEmpty &&
+          !ExcelParserService.canMapLocally(rawHeaders)) {
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Identificando colunas com IA...',
+          spreadsheets: state.spreadsheets,
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
         aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
       }
 
@@ -444,6 +454,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
     final produtoQtd = <String, int>{};
     final produtoFat = <String, double>{};
+    final produtoDevolvidoQtd = <String, int>{};
     final anuncioQtd = <String, int>{};
     final anuncioFat = <String, double>{};
 
@@ -472,6 +483,10 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       for (final entry in summary.top10ProdutosReceita) {
         produtoFat[entry.key] = (produtoFat[entry.key] ?? 0) + entry.value;
       }
+      for (final entry in summary.top10ProdutosDevolvidos) {
+        produtoDevolvidoQtd[entry.key] =
+            (produtoDevolvidoQtd[entry.key] ?? 0) + entry.value;
+      }
       for (final entry in summary.top10Anuncios) {
         anuncioQtd[entry.key] = (anuncioQtd[entry.key] ?? 0) + entry.value;
       }
@@ -489,6 +504,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final top10ProdutosReceita = produtoFat.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final top10ProdutosDevolvidos = produtoDevolvidoQtd.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final top10Anuncios = anuncioQtd.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top10AnunciosReceita = anuncioFat.entries.toList()
@@ -503,6 +520,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       ticketMedio: ticketMedio,
       top10Produtos: top10Produtos.take(10).toList(),
       top10ProdutosReceita: top10ProdutosReceita.take(10).toList(),
+      top10ProdutosDevolvidos: top10ProdutosDevolvidos.take(10).toList(),
       top10Anuncios: top10Anuncios.take(10).toList(),
       top10AnunciosReceita: top10AnunciosReceita.take(10).toList(),
       dataInicio: dataInicio,
