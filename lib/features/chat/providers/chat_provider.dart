@@ -127,45 +127,55 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final spreadsheetState = _ref.read(spreadsheetDataProvider);
       final activeData = spreadsheetState.activeData;
-      final selectedSheets = spreadsheetState.spreadsheets
-          .where((sheet) => sheet.selected)
-          .map((sheet) => sheet.name)
-          .toList();
-      final activeSheet = spreadsheetState.spreadsheets
-          .cast<ImportedSpreadsheet?>()
-          .firstWhere((sheet) => sheet?.selected == true, orElse: () => null);
 
-      final resumoJson = activeData != null
-          ? {
-              ...activeData.toResumoJson(),
-              'planilhas_selecionadas': selectedSheets,
-              'total_planilhas_importadas':
-                  spreadsheetState.spreadsheets.length,
-              'total_planilhas_selecionadas': selectedSheets.length,
-              'planilha_ativa_id': spreadsheetState.activeSpreadsheetId,
-              'planilha_ativa_nome': activeSheet?.name,
-              'ha_planilha_ativa': true,
-            }
-          : {
-              'planilhas_selecionadas': selectedSheets,
-              'total_planilhas_importadas':
-                  spreadsheetState.spreadsheets.length,
-              'total_planilhas_selecionadas': selectedSheets.length,
-              'planilha_ativa_id': null,
-              'planilha_ativa_nome': null,
-              'ha_planilha_ativa': false,
-            };
+      final planilhasJson = spreadsheetState.spreadsheets.map((sheet) {
+        final summary = sheet.summary;
+        return {
+          'id': sheet.id,
+          'nome': sheet.name,
+          'selecionada': sheet.selected,
+          'mes_referencia': summary.mesReferencia,
+          'mes_label': summary.mesReferenciaLabel,
+          'data_inicio': summary.dataInicio?.toIso8601String().split('T').first,
+          'data_fim': summary.dataFim?.toIso8601String().split('T').first,
+          ...summary.toResumoJson(),
+        };
+      }).toList();
+
+      final resumoJson = {
+        'total_planilhas_importadas': spreadsheetState.spreadsheets.length,
+        'planilhas_importadas': planilhasJson,
+        'consolidado_selecionado': activeData != null
+            ? {
+                'data_inicio': activeData.dataInicio?.toIso8601String().split('T').first,
+                'data_fim': activeData.dataFim?.toIso8601String().split('T').first,
+                ...activeData.toResumoJson(),
+              }
+            : null,
+      };
 
       final ai = FirebaseAI.vertexAI();
       final model = ai.generativeModel(
         model: 'gemini-2.5-flash',
         systemInstruction: Content.system(
-          'Voce e um consultor de e-commerce do app Fluxia. '
-          'Responda usando apenas o JSON de dados disponiveis agora; ignore qualquer dado de mensagens antigas. '
-          'Se nao houver planilha ativa, diga que nao ha dados selecionados e oriente o usuario a importar ou selecionar planilhas XLSX/CSV. '
-          'Considere os KPIs pre-processados: pedidos concluidos, devolucoes, faturamento, lucro, ticket medio, top produtos, produtos devolvidos e top anuncios. '
-          'Para perguntas sobre produtos devolvidos, use top_10_produtos_devolvidos quando houver dados; se estiver vazio, explique que so existe o total de devolucoes. '
-          'Dados disponiveis agora: $resumoJson',
+          'Você é o Assistente Fluxia, um consultor de e-commerce inteligente integrado ao aplicativo Fluxia. '
+          'Seu objetivo é ajudar o usuário a analisar a performance de vendas de sua loja virtual. '
+          'Você deve seguir RIGOROSAMENTE as seguintes diretrizes:\n\n'
+          '1. IDIOMA E FORMATAÇÃO DE SAÍDA:\n'
+          '   - Responda SEMPRE em português brasileiro natural, direto, amigável e profissional.\n'
+          '   - Use formatação Markdown (negrito para destacar números, listas se necessário) para tornar a leitura fluida.\n'
+          '   - IMPORTANTE: NUNCA responda em formato JSON, bloco de código de programação ou qualquer estrutura puramente técnica (como chaves ou propriedades de objeto). O usuário final deve ler apenas um texto corrido e bem estruturado.\n\n'
+          '2. CONTEXTO DE DADOS (JSON DE ENTRADA):\n'
+          '   - Você tem acesso aos dados estruturados da loja através do JSON disponibilizado: $resumoJson\n'
+          '   - O JSON contém a lista de planilhas importadas ("planilhas_importadas") com seus respectivos nomes, meses, faturamento, lucro e KPIs, e um consolidado dos itens atualmente selecionados pelo usuário ("consolidado_selecionado").\n\n'
+          '3. AUTONOMIA PARA CÁLCULOS E INTENÇÃO DO USUÁRIO:\n'
+          '   - Se o usuário perguntar pelo faturamento total ou lucro total consolidado, você deve somar os valores de faturamento_total ou lucro_total de todas as planilhas disponíveis em "planilhas_importadas" (ou das que ele mencionar).\n'
+          '   - Se o usuário perguntar sobre o faturamento/lucro de uma planilha específica (ex: "faturamento da planilha X"), busque os dados apenas daquela planilha na lista.\n'
+          '   - Se perguntado sobre um período, mês ou status de vendas específico, filtre os dados no JSON usando os campos "mes_label", "mes_referencia" ou as estatísticas contidas nos resumos das planilhas.\n'
+          '   - Você tem total autonomia para realizar operações matemáticas simples como somar faturamentos, calcular porcentagem de lucro (Lucro Total / Faturamento Total * 100), ou taxa de devoluções (Pedidos Devolvidos / Pedidos Concluídos * 100).\n\n'
+          '4. TRATAMENTO DE DADOS FALTANTES:\n'
+          '   - Se o usuário fizer uma pergunta complexa para a qual faltem dados (ex: previsão de vendas sem dados de histórico suficientes, ou ticket médio de produtos devolvidos sem valores financeiros específicos de devolução), NUNCA dê uma desculpa genérica ou diga apenas "não consigo responder".\n'
+          '   - Explique exatamente quais dados você tem disponíveis e qual dado específico está faltando para realizar aquele cálculo (ex: "Consigo ver que você teve 44 devoluções, mas como não temos o valor financeiro dessas devoluções cadastrado na planilha, não consigo calcular o ticket médio dos produtos devolvidos").'
         ),
       );
 

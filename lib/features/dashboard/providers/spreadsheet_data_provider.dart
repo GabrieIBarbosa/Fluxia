@@ -132,6 +132,15 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     }
   }
 
+  List<ImportedSpreadsheet> _selectOnly(
+    List<ImportedSpreadsheet> spreadsheets,
+    String id,
+  ) {
+    return spreadsheets.map((sheet) {
+      return sheet.copyWith(selected: sheet.id == id);
+    }).toList();
+  }
+
   Future<void> pickAndProcessSpreadsheet() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -176,14 +185,32 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
-          loadingMessage: 'Processando \...',
-          loadingProgress: 0.1,
+          loadingMessage: 'Iniciando importação...',
+          loadingProgress: 0.05,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Lendo arquivo...',
+          loadingProgress: 0.20,
           spreadsheets: [...imported, ...oldSheets],
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
         );
 
         final bytes = await _readFileBytes(file);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Validando colunas...',
+          loadingProgress: 0.40,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
 
         final sample = ExcelParserService.extractSampleRows(bytes, file.name);
         final rawHeaders = sample['headers'] as List<String>? ?? [];
@@ -195,7 +222,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
           state = SpreadsheetDataState(
             status: SpreadsheetStatus.loading,
             loadingMessage: 'Identificando colunas com IA...',
-            loadingProgress: 0.6,
+            loadingProgress: 0.50,
             spreadsheets: [...imported, ...oldSheets],
             activeSpreadsheetId: state.activeSpreadsheetId,
             activeData: state.activeData,
@@ -205,14 +232,23 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
-          loadingMessage: 'Processando \...',
-          loadingProgress: 0.8,
+          loadingMessage: 'Processando dados...',
+          loadingProgress: 0.60,
           spreadsheets: [...imported, ...oldSheets],
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
         );
 
         final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Gerando indicadores...',
+          loadingProgress: 0.80,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
 
         if (uid == null) {
           final localId =
@@ -306,14 +342,32 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     try {
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Processando \...',
-        loadingProgress: 0.1,
+        loadingMessage: 'Iniciando atualização...',
+        loadingProgress: 0.05,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Lendo arquivo...',
+        loadingProgress: 0.20,
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
       );
 
       final bytes = await _readFileBytes(file);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Validando colunas...',
+        loadingProgress: 0.40,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
 
       final sample = ExcelParserService.extractSampleRows(bytes, file.name);
       final rawHeaders = sample['headers'] as List<String>? ?? [];
@@ -325,7 +379,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
           loadingMessage: 'Identificando colunas com IA...',
-          loadingProgress: 0.6,
+          loadingProgress: 0.50,
           spreadsheets: state.spreadsheets,
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
@@ -335,14 +389,23 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Processando \...',
-        loadingProgress: 0.8,
+        loadingMessage: 'Processando dados...',
+        loadingProgress: 0.60,
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
       );
 
       final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Gerando indicadores...',
+        loadingProgress: 0.80,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
 
       if (uid != null) {
         await FirestoreService.updateExcelSummary(
@@ -446,8 +509,6 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       activeData: activeData,
     );
   }
-
-
 
   SpreadsheetAggregatedData _combineSummaries(
     List<ImportedSpreadsheet> selected,

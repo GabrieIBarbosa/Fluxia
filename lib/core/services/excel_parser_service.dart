@@ -578,12 +578,24 @@ class ExcelParserService {
 
     for (final record in records) {
       if (record.dataVenda != null) {
+    final anuncioFat = <String, double>{};
+
+    final monthCounts = <String, int>{};
+    final monthLabels = <String, String>{};
+
+    double faturamentoTotal = 0;
+    double lucroTotal = 0;
+    DateTime? dataInicio;
+    DateTime? dataFim;
+
+    for (final record in records) {
+      if (record.dataVenda != null) {
         final key = _monthKey(record.dataVenda!);
         monthCounts[key] = (monthCounts[key] ?? 0) + 1;
         monthLabels[key] = _monthLabel(record.dataVenda!);
       }
 
-      final status = _normalize(record.status);
+      final status = _normalizeStatus(record.status);
 
       if (status == 'COMPLETED') {
         completedRecords.add(record);
@@ -632,7 +644,7 @@ class ExcelParserService {
         }
       }
 
-      if (status.contains('DEVOLUCAO')) {
+      if (status == 'DEVOLUCAO') {
         pedidosDevolucao++;
         final produtoKey = record.produto.isNotEmpty
             ? record.produto
@@ -695,6 +707,28 @@ class ExcelParserService {
 
   static String _normalize(String value) {
     return _stripAccents(value).trim().toUpperCase();
+  }
+
+  static String _normalizeStatus(String statusRaw) {
+    if (statusRaw.trim().isEmpty) return 'COMPLETED';
+    final status = _normalize(statusRaw);
+    if (status == 'COMPLETED' ||
+        status == 'DELIVERED' ||
+        status == 'ENTREGUE' ||
+        status == 'CONCLUIDO' ||
+        status == 'CONCLUÍDO' ||
+        status == 'FATURADO' ||
+        status == 'PAGO' ||
+        status == 'APROVADO') {
+      return 'COMPLETED';
+    }
+    if (status.contains('DEVOL') ||
+        status.contains('REEMB') ||
+        status.contains('ESTORN') ||
+        status.contains('RETURN')) {
+      return 'DEVOLUCAO';
+    }
+    return status;
   }
 
   static String _stripAccents(String value) {
@@ -789,11 +823,12 @@ class ExcelParserService {
       normalized = normalized.substring(1);
     }
 
-    final hasComma = normalized.contains(',');
-    final hasDot = normalized.contains('.');
+    final dotCount = '.'.allMatches(normalized).length;
+    final commaCount = ','.allMatches(normalized).length;
+
     var numberText = normalized;
 
-    if (hasComma && hasDot) {
+    if (dotCount > 0 && commaCount > 0) {
       final lastComma = normalized.lastIndexOf(',');
       final lastDot = normalized.lastIndexOf('.');
       final decimalSep = lastComma > lastDot ? ',' : '.';
@@ -802,18 +837,14 @@ class ExcelParserService {
       if (decimalSep == ',') {
         numberText = numberText.replaceAll(',', '.');
       }
-    } else if (hasComma) {
-      final parts = normalized.split(',');
-      final looksLikeThousands = parts.length == 2 && parts[1].length == 3;
-      numberText = looksLikeThousands
-          ? normalized.replaceAll(',', '')
-          : normalized.replaceAll(',', '.');
-    } else if (hasDot) {
-      final parts = normalized.split('.');
-      final looksLikeThousands = parts.length == 2 && parts[1].length == 3;
-      numberText = looksLikeThousands
-          ? normalized.replaceAll('.', '')
-          : normalized.replaceAll(',', '');
+    } else if (commaCount > 1) {
+      numberText = normalized.replaceAll(',', '');
+    } else if (dotCount > 1) {
+      numberText = normalized.replaceAll('.', '');
+    } else if (commaCount == 1) {
+      numberText = normalized.replaceAll(',', '.');
+    } else if (dotCount == 1) {
+      numberText = normalized;
     }
 
     final parsed = double.tryParse(numberText) ?? 0.0;
