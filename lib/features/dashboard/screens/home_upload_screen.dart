@@ -49,50 +49,102 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
     final authState = ref.watch(authProvider);
     final theme = Theme.of(context);
     final userName = _userGreetingName(authState);
+    final isLoading = spreadsheetState.status == SpreadsheetStatus.loading;
     _syncLoadingTimer(spreadsheetState.status);
 
-    return SafeArea(
-      top: false,
-      child: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(26, 10, 26, 24),
-        children: [
-          const SizedBox(height: 8),
-          RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-              children: [
-                TextSpan(text: 'Olá, '),
-                TextSpan(
-                  text: '$userName!',
-                  style: const TextStyle(color: AppColors.primary),
+    return Stack(
+      children: [
+        SafeArea(
+          top: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(26, 10, 26, 24),
+            children: [
+              const SizedBox(height: 8),
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Olá, '),
+                    TextSpan(
+                      text: '$userName!',
+                      style: const TextStyle(color: AppColors.primary),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'O que vamos analisar hoje?',
+                style: theme.textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 42),
+              _buildUploadButton(spreadsheetState),
+              const SizedBox(height: 24),
+              Text(
+                isLoading
+                    ? AppStrings.loadingMessages[_loadingMessageIndex]
+                    : 'Toque para importar um relatório XLSX ou CSV\nMercado Livre, Shopee ou genérico • Até 8MB',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 30),
+              _buildSpreadsheetPanel(theme, spreadsheetState),
+            ],
+          ),
+        ),
+                if (isLoading)
+          Positioned.fill(
+            child: Container(
+              color: AppColors.background.withOpacity(0.8),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 64,
+                          height: 64,
+                          child: CircularProgressIndicator(
+                            value: spreadsheetState.loadingProgress,
+                            color: AppColors.primary,
+                            strokeWidth: 5,
+                            backgroundColor: AppColors.primary.withOpacity(0.2),
+                          ),
+                        ),
+                        if (spreadsheetState.loadingProgress != null)
+                          Text(
+                            '${(spreadsheetState.loadingProgress! * 100).toInt()}%',
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      spreadsheetState.loadingMessage.isNotEmpty
+                          ? spreadsheetState.loadingMessage
+                          : AppStrings.loadingMessages[_loadingMessageIndex],
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'O que vamos analisar hoje?',
-            style: theme.textTheme.bodyMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 42),
-          _buildUploadButton(spreadsheetState),
-          const SizedBox(height: 24),
-          Text(
-            spreadsheetState.status == SpreadsheetStatus.loading
-                ? AppStrings.loadingMessages[_loadingMessageIndex]
-                : 'Toque para importar um relatório XLSX\nMercado Livre ou Shopee • Até 8MB',
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 30),
-          _buildSpreadsheetPanel(theme, spreadsheetState),
-        ],
-      ),
+      ],
     );
   }
 
@@ -149,10 +201,10 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
               ),
               const SizedBox(height: 9),
               const Text(
-                'XLSX',
+                'XLSX / CSV',
                 style: TextStyle(
                   color: AppColors.white,
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -199,6 +251,29 @@ class _HomeUploadScreenState extends ConsumerState<HomeUploadScreen> {
                   ),
                 ),
               ),
+              if (items.isNotEmpty) ...[
+                Checkbox(
+                  value: spreadsheetState.allSelected,
+                  tristate: spreadsheetState.selectedCount > 0 &&
+                      !spreadsheetState.allSelected,
+                  onChanged: (value) => ref
+                      .read(spreadsheetDataProvider.notifier)
+                      .setAllSpreadsheetsSelected(value ?? false),
+                  activeColor: AppColors.primary,
+                  checkColor: AppColors.white,
+                  side: const BorderSide(color: AppColors.divider),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Todas',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -361,10 +436,10 @@ class _SpreadsheetTile extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
-                'XLSX',
+                'PLANILHA',
                 style: TextStyle(
                   color: AppColors.white,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w800,
                 ),
               ),

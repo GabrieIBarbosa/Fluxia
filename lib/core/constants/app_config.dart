@@ -1,4 +1,4 @@
-// lib/core/constants/app_config.dart
+﻿// lib/core/constants/app_config.dart
 
 class AppConfig {
   AppConfig._();
@@ -25,13 +25,13 @@ class AppConfig {
     'Produto',
     'Produtos Individuais',
     'Quantidade',
-    'Preço Unit.',
+    'Preco Unit.',
     'Venda Total',
-    'Tipo Anúncio',
+    'Tipo Anuncio',
     'Tipo Entrega',
     'Custo Produto',
-    'Comissão MKT',
-    'Ads Fácil',
+    'Comissao MKT',
+    'Ads Facil',
     'Custo Frete',
     'Imposto',
     'Embalagem',

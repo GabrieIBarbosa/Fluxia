@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/services/ai_mapper_service.dart';
 import '../../../core/services/excel_parser_service.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -53,6 +54,7 @@ class SpreadsheetDataState {
   final SpreadsheetAggregatedData? activeData;
   final String? errorMessage;
   final String loadingMessage;
+  final double? loadingProgress;
   final List<ImportedSpreadsheet> spreadsheets;
   final String? activeSpreadsheetId;
 
@@ -61,6 +63,7 @@ class SpreadsheetDataState {
     this.activeData,
     this.errorMessage,
     this.loadingMessage = '',
+    this.loadingProgress,
     this.spreadsheets = const [],
     this.activeSpreadsheetId,
   });
@@ -68,6 +71,8 @@ class SpreadsheetDataState {
   int get selectedCount => spreadsheets.where((sheet) => sheet.selected).length;
 
   bool get hasSpreadsheets => spreadsheets.isNotEmpty;
+
+  bool get allSelected => spreadsheets.isNotEmpty && selectedCount == spreadsheets.length;
 }
 
 class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
@@ -127,10 +132,19 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     }
   }
 
+  List<ImportedSpreadsheet> _selectOnly(
+    List<ImportedSpreadsheet> spreadsheets,
+    String id,
+  ) {
+    return spreadsheets.map((sheet) {
+      return sheet.copyWith(selected: sheet.id == id);
+    }).toList();
+  }
+
   Future<void> pickAndProcessSpreadsheet() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: true,
       withData: true,
     );
@@ -171,14 +185,70 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
         state = SpreadsheetDataState(
           status: SpreadsheetStatus.loading,
-          loadingMessage: 'Processando ${file.name}...',
+          loadingMessage: 'Iniciando importação...',
+          loadingProgress: 0.05,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Lendo arquivo...',
+          loadingProgress: 0.20,
           spreadsheets: [...imported, ...oldSheets],
           activeSpreadsheetId: state.activeSpreadsheetId,
           activeData: state.activeData,
         );
 
         final bytes = await _readFileBytes(file);
-        final summary = ExcelParserService.parseAndAggregate(bytes);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Validando colunas...',
+          loadingProgress: 0.40,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final sample = ExcelParserService.extractSampleRows(bytes, file.name);
+        final rawHeaders = sample['headers'] as List<String>? ?? [];
+        final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+        Map<String, String>? aiMap = ExcelParserService.localColumnMapping(rawHeaders);
+        if (rawHeaders.isNotEmpty &&
+            !ExcelParserService.canMapLocally(rawHeaders)) {
+          state = SpreadsheetDataState(
+            status: SpreadsheetStatus.loading,
+            loadingMessage: 'Identificando colunas com IA...',
+            loadingProgress: 0.50,
+            spreadsheets: [...imported, ...oldSheets],
+            activeSpreadsheetId: state.activeSpreadsheetId,
+            activeData: state.activeData,
+          );
+          aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+        }
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Processando dados...',
+          loadingProgress: 0.60,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+
+        final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
+
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Gerando indicadores...',
+          loadingProgress: 0.80,
+          spreadsheets: [...imported, ...oldSheets],
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
 
         if (uid == null) {
           final localId =
@@ -231,12 +301,18 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   }
 
   void setSpreadsheetSelected(String id, bool selected) {
-    final spreadsheets = selected
-        ? _selectOnly(state.spreadsheets, id)
-        : state.spreadsheets.map((sheet) {
-            if (sheet.id != id) return sheet;
-            return sheet.copyWith(selected: false);
-          }).toList();
+    final spreadsheets = state.spreadsheets.map((sheet) {
+      if (sheet.id != id) return sheet;
+      return sheet.copyWith(selected: selected);
+    }).toList();
+
+    state = _stateFromSpreadsheets(spreadsheets);
+  }
+
+  void setAllSpreadsheetsSelected(bool selected) {
+    final spreadsheets = state.spreadsheets
+        .map((sheet) => sheet.copyWith(selected: selected))
+        .toList();
 
     state = _stateFromSpreadsheets(spreadsheets);
   }
@@ -244,7 +320,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   Future<void> updateSpreadsheet(String id) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['xlsx'],
+      allowedExtensions: ['xlsx', 'csv'],
       allowMultiple: false,
       withData: true,
     );
@@ -266,14 +342,70 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     try {
       state = SpreadsheetDataState(
         status: SpreadsheetStatus.loading,
-        loadingMessage: 'Atualizando ${file.name}...',
+        loadingMessage: 'Iniciando atualização...',
+        loadingProgress: 0.05,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Lendo arquivo...',
+        loadingProgress: 0.20,
         spreadsheets: state.spreadsheets,
         activeSpreadsheetId: state.activeSpreadsheetId,
         activeData: state.activeData,
       );
 
       final bytes = await _readFileBytes(file);
-      final summary = ExcelParserService.parseAndAggregate(bytes);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Validando colunas...',
+        loadingProgress: 0.40,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final sample = ExcelParserService.extractSampleRows(bytes, file.name);
+      final rawHeaders = sample['headers'] as List<String>? ?? [];
+      final rawRows = sample['rows'] as List<List<String>>? ?? [];
+
+      Map<String, String>? aiMap = ExcelParserService.localColumnMapping(rawHeaders);
+      if (rawHeaders.isNotEmpty &&
+          !ExcelParserService.canMapLocally(rawHeaders)) {
+        state = SpreadsheetDataState(
+          status: SpreadsheetStatus.loading,
+          loadingMessage: 'Identificando colunas com IA...',
+          loadingProgress: 0.50,
+          spreadsheets: state.spreadsheets,
+          activeSpreadsheetId: state.activeSpreadsheetId,
+          activeData: state.activeData,
+        );
+        aiMap = await AiMapperService.suggestColumnMapping(rawHeaders, rawRows);
+      }
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Processando dados...',
+        loadingProgress: 0.60,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
+
+      final summary = ExcelParserService.parseAndAggregate(bytes, file.name, aiMap);
+
+      state = SpreadsheetDataState(
+        status: SpreadsheetStatus.loading,
+        loadingMessage: 'Gerando indicadores...',
+        loadingProgress: 0.80,
+        spreadsheets: state.spreadsheets,
+        activeSpreadsheetId: state.activeSpreadsheetId,
+        activeData: state.activeData,
+      );
 
       if (uid != null) {
         await FirestoreService.updateExcelSummary(
@@ -313,18 +445,21 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
     final target = state.spreadsheets.where((e) => e.id == id).toList();
     if (target.isEmpty) return;
 
-    if (uid != null) {
-      await FirestoreService.deletePlanilha(uid!, id);
-    }
-
     final remaining = state.spreadsheets.where((e) => e.id != id).toList();
 
     if (remaining.isEmpty) {
       state = const SpreadsheetDataState(status: SpreadsheetStatus.empty);
-      return;
+    } else {
+      state = _stateFromSpreadsheets(remaining);
     }
 
-    state = _stateFromSpreadsheets(remaining);
+    if (uid != null) {
+      try {
+        await FirestoreService.deletePlanilha(uid!, id);
+      } catch (e) {
+        // Ignorar erro no UI, mas manter fallback se precisar
+      }
+    }
   }
 
   Future<void> renameSpreadsheet(String id, String newName) async {
@@ -361,40 +496,18 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
   SpreadsheetDataState _stateFromSpreadsheets(
     List<ImportedSpreadsheet> spreadsheets,
   ) {
-    final normalized = _normalizeSingleSelection(spreadsheets);
-    final selected = normalized.where((sheet) => sheet.selected).toList();
+    final selected = spreadsheets.where((sheet) => sheet.selected).toList();
 
     final activeData = selected.isEmpty ? null : _combineSummaries(selected);
 
     return SpreadsheetDataState(
-      status: normalized.isEmpty
+      status: spreadsheets.isEmpty
           ? SpreadsheetStatus.empty
           : SpreadsheetStatus.loaded,
-      spreadsheets: normalized,
+      spreadsheets: spreadsheets,
       activeSpreadsheetId: selected.isEmpty ? null : selected.first.id,
       activeData: activeData,
     );
-  }
-
-  List<ImportedSpreadsheet> _selectOnly(
-    List<ImportedSpreadsheet> spreadsheets,
-    String id,
-  ) {
-    return spreadsheets
-        .map((sheet) => sheet.copyWith(selected: sheet.id == id))
-        .toList();
-  }
-
-  List<ImportedSpreadsheet> _normalizeSingleSelection(
-    List<ImportedSpreadsheet> spreadsheets,
-  ) {
-    var hasSelected = false;
-    return spreadsheets.map((sheet) {
-      if (!sheet.selected) return sheet;
-      if (hasSelected) return sheet.copyWith(selected: false);
-      hasSelected = true;
-      return sheet;
-    }).toList();
   }
 
   SpreadsheetAggregatedData _combineSummaries(
@@ -410,6 +523,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
 
     final produtoQtd = <String, int>{};
     final produtoFat = <String, double>{};
+    final produtoDevolvidoQtd = <String, int>{};
     final anuncioQtd = <String, int>{};
     final anuncioFat = <String, double>{};
 
@@ -438,6 +552,10 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       for (final entry in summary.top10ProdutosReceita) {
         produtoFat[entry.key] = (produtoFat[entry.key] ?? 0) + entry.value;
       }
+      for (final entry in summary.top10ProdutosDevolvidos) {
+        produtoDevolvidoQtd[entry.key] =
+            (produtoDevolvidoQtd[entry.key] ?? 0) + entry.value;
+      }
       for (final entry in summary.top10Anuncios) {
         anuncioQtd[entry.key] = (anuncioQtd[entry.key] ?? 0) + entry.value;
       }
@@ -455,6 +573,8 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       ..sort((a, b) => b.value.compareTo(a.value));
     final top10ProdutosReceita = produtoFat.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
+    final top10ProdutosDevolvidos = produtoDevolvidoQtd.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     final top10Anuncios = anuncioQtd.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top10AnunciosReceita = anuncioFat.entries.toList()
@@ -469,6 +589,7 @@ class SpreadsheetDataNotifier extends StateNotifier<SpreadsheetDataState> {
       ticketMedio: ticketMedio,
       top10Produtos: top10Produtos.take(10).toList(),
       top10ProdutosReceita: top10ProdutosReceita.take(10).toList(),
+      top10ProdutosDevolvidos: top10ProdutosDevolvidos.take(10).toList(),
       top10Anuncios: top10Anuncios.take(10).toList(),
       top10AnunciosReceita: top10AnunciosReceita.take(10).toList(),
       dataInicio: dataInicio,

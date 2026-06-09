@@ -192,8 +192,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final suggestions = <String>[
       if (hasData) ...[
         'Qual é o faturamento total da planilha ativa?',
-        'Qual é o lucro total e a margem de lucro?',
-        'Quantos pedidos completed existem?',
+        'Qual foi o faturamento de ${data.mesReferenciaLabel ?? "este mês"}?',
+        'Quantos pedidos concluídos existem?',
+        'Qual o lucro líquido total?',
         'Quantas devoluções existem nessa planilha?',
         'Quais são os top 10 produtos mais vendidos?',
         'Quais são os top 10 anúncios mais vendidos?',
@@ -403,7 +404,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildInputBar(ChatState chatState) {
-    final canSend = !chatState.isLoading;
+    final canSend = !chatState.isLoading && chatState.perguntasDisponiveis > 0;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
@@ -422,9 +423,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               maxLines: null,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                hintText: canSend
-                    ? AppStrings.chatHint
-                    : 'Aguarde a resposta da IA...',
+                hintText: chatState.perguntasDisponiveis <= 0
+                    ? 'Assista a um video para liberar perguntas'
+                    : canSend
+                        ? AppStrings.chatHint
+                        : 'Aguarde a resposta da IA...',
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,

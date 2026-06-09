@@ -1,8 +1,9 @@
 // lib/core/services/excel_parser_service.dart
 
+import 'dart:convert';
 import 'dart:typed_data';
+import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
-import '../constants/app_config.dart';
 
 class SaleRecord {
   final String loja;
@@ -93,6 +94,7 @@ class SpreadsheetAggregatedData {
   final double ticketMedio;
   final List<MapEntry<String, int>> top10Produtos;
   final List<MapEntry<String, double>> top10ProdutosReceita;
+  final List<MapEntry<String, int>> top10ProdutosDevolvidos;
   final List<MapEntry<String, int>> top10Anuncios;
   final List<MapEntry<String, double>> top10AnunciosReceita;
   final String? mesReferencia;
@@ -110,6 +112,7 @@ class SpreadsheetAggregatedData {
     required this.ticketMedio,
     required this.top10Produtos,
     required this.top10ProdutosReceita,
+    required this.top10ProdutosDevolvidos,
     required this.top10Anuncios,
     required this.top10AnunciosReceita,
     this.mesReferencia,
@@ -137,6 +140,9 @@ class SpreadsheetAggregatedData {
       'top_10_produtos_receita': top10ProdutosReceita
           .map((e) => {'nome': e.key, 'valor': e.value})
           .toList(),
+      'top_10_produtos_devolvidos': top10ProdutosDevolvidos
+          .map((e) => {'nome': e.key, 'quantidade': e.value})
+          .toList(),
       'top_10_anuncios': top10Anuncios
           .map((e) => {'nome': e.key, 'quantidade': e.value})
           .toList(),
@@ -157,6 +163,9 @@ class SpreadsheetAggregatedData {
       'mes_referencia': mesReferencia,
       'mes_label': mesReferenciaLabel,
       'top_10_produtos': top10Produtos
+          .map((e) => {'produto': e.key, 'quantidade': e.value})
+          .toList(),
+      'top_10_produtos_devolvidos': top10ProdutosDevolvidos
           .map((e) => {'produto': e.key, 'quantidade': e.value})
           .toList(),
       'top_10_anuncios': top10Anuncios
@@ -206,6 +215,7 @@ class SpreadsheetAggregatedData {
       ticketMedio: ((map['ticket_medio'] ?? 0) as num).toDouble(),
       top10Produtos: parseIntRanking('top_10_produtos'),
       top10ProdutosReceita: parseDoubleRanking('top_10_produtos_receita'),
+      top10ProdutosDevolvidos: parseIntRanking('top_10_produtos_devolvidos'),
       top10Anuncios: parseIntRanking('top_10_anuncios'),
       top10AnunciosReceita: parseDoubleRanking('top_10_anuncios_receita'),
       mesReferencia: monthKey,
@@ -218,6 +228,122 @@ class SpreadsheetAggregatedData {
 }
 
 class ExcelParserService {
+  static const List<String> _canonicalColumns = [
+    'Loja',
+    'Marketplace',
+    'ID Pedido',
+    'ID Envio',
+    'Data Venda',
+    'Status',
+    'SKU',
+    'Produto',
+    'Produtos Individuais',
+    'Quantidade',
+    'Preco Unit.',
+    'Venda Total',
+    'Tipo Anuncio',
+    'Tipo Entrega',
+    'Custo Produto',
+    'Comissao MKT',
+    'Ads Facil',
+    'Custo Frete',
+    'Imposto',
+    'Embalagem',
+    'Custo Total',
+    'Lucro R\$',
+    'Lucro %',
+  ];
+
+  static const Map<String, String> _headerAliases = {
+    'loja': 'Loja',
+    'store': 'Loja',
+    'marketplace': 'Marketplace',
+    'canal': 'Marketplace',
+    'plataforma': 'Marketplace',
+    'id pedido': 'ID Pedido',
+    'pedido': 'ID Pedido',
+    'numero pedido': 'ID Pedido',
+    'order id': 'ID Pedido',
+    'id envio': 'ID Envio',
+    'envio': 'ID Envio',
+    'shipment id': 'ID Envio',
+    'data venda': 'Data Venda',
+    'data': 'Data Venda',
+    'date': 'Data Venda',
+    'created at': 'Data Venda',
+    'status': 'Status',
+    'situacao': 'Status',
+    'sku': 'SKU',
+    'codigo': 'SKU',
+    'codigo produto': 'SKU',
+    'produto': 'Produto',
+    'product': 'Produto',
+    'nome produto': 'Produto',
+    'item': 'Produto',
+    'produtos individuais': 'Produtos Individuais',
+    'itens': 'Produtos Individuais',
+    'quantidade': 'Quantidade',
+    'qtd': 'Quantidade',
+    'qty': 'Quantidade',
+    'preco unit': 'Preco Unit.',
+    'preco unitario': 'Preco Unit.',
+    'valor unitario': 'Preco Unit.',
+    'unit price': 'Preco Unit.',
+    'venda total': 'Venda Total',
+    'total': 'Venda Total',
+    'valor total': 'Venda Total',
+    'faturamento': 'Venda Total',
+    'revenue': 'Venda Total',
+    'tipo anuncio': 'Tipo Anuncio',
+    'anuncio': 'Tipo Anuncio',
+    'tipo entrega': 'Tipo Entrega',
+    'entrega': 'Tipo Entrega',
+    'custo produto': 'Custo Produto',
+    'custo': 'Custo Produto',
+    'comissao mkt': 'Comissao MKT',
+    'comissao': 'Comissao MKT',
+    'ads facil': 'Ads Facil',
+    'ads': 'Ads Facil',
+    'custo frete': 'Custo Frete',
+    'frete': 'Custo Frete',
+    'imposto': 'Imposto',
+    'embalagem': 'Embalagem',
+    'custo total': 'Custo Total',
+    'lucro r': 'Lucro R\$',
+    'lucro': 'Lucro R\$',
+    'profit': 'Lucro R\$',
+    'lucro percent': 'Lucro %',
+    'lucro pct': 'Lucro %',
+    'margem': 'Lucro %',
+  };
+
+  static Map<String, dynamic> extractSampleRows(Uint8List bytes, String fileName) {
+    List<List<dynamic>> rows;
+
+    if (fileName.toLowerCase().endsWith('.csv')) {
+      final text = utf8.decode(bytes, allowMalformed: true);
+      final separator = text.contains(';') && text.split(';').length > text.split(',').length ? ';' : ',';
+      rows = const CsvToListConverter().convert(text, fieldDelimiter: separator, eol: '\n');
+      if (rows.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+    } else {
+      final excel = Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+      final sheet = excel.tables.values.first;
+      if (sheet.rows.isEmpty) return {'headers': <String>[], 'rows': <List<String>>[]};
+      rows = sheet.rows.map((row) => row.map((e) => e?.value ?? '').toList()).toList();
+    }
+
+    final header = rows.first.map((e) => e.toString().trim()).toList();
+    final sample = rows.skip(1).take(3).map(
+      (row) => row.map((e) => e.toString().trim()).toList()
+    ).toList();
+
+    return {
+      'headers': header,
+      'rows': sample,
+    };
+  }
+
   static const List<String> _monthNames = [
     'Jan',
     'Fev',
@@ -254,30 +380,36 @@ class ExcelParserService {
     return '$name/$year';
   }
 
-  static SpreadsheetAggregatedData parseAndAggregate(Uint8List bytes) {
-    final excel = Excel.decodeBytes(bytes);
-    if (excel.tables.isEmpty) {
-      throw Exception('Arquivo XLSX vazio ou inválido.');
+  static SpreadsheetAggregatedData parseAndAggregate(
+    Uint8List bytes, [
+    String fileName = 'planilha.xlsx',
+    Map<String, String>? aiColumnMap,
+  ]) {
+    List<List<dynamic>> rows;
+
+    if (fileName.toLowerCase().endsWith('.csv')) {
+      final text = utf8.decode(bytes, allowMalformed: true);
+      final separator = text.contains(';') && text.split(';').length > text.split(',').length ? ';' : ',';
+      rows = const CsvToListConverter().convert(text, fieldDelimiter: separator, eol: '\n');
+      if (rows.isEmpty) throw Exception('A planilha nao possui linhas.');
+    } else {
+      final excel = Excel.decodeBytes(bytes);
+      if (excel.tables.isEmpty) throw Exception('Arquivo XLSX vazio ou invalido.');
+      final sheet = excel.tables.values.first;
+      if (sheet.rows.isEmpty) throw Exception('A planilha nao possui linhas.');
+      rows = sheet.rows.map((row) => row.map((e) => e?.value).toList()).toList();
     }
 
-    final sheet = excel.tables.values.first;
-    if (sheet.rows.isEmpty) {
-      throw Exception('A planilha não possui linhas.');
-    }
-
-    final header = sheet.rows.first
-        .map((e) => (e?.value ?? '').toString().trim())
+    final rawHeader = rows.first
+        .map((e) => (e ?? '').toString().trim())
         .toList();
+    var header = rawHeader.map(_canonicalColumnName).toList();
 
-    final missing = AppConfig.requiredSpreadsheetColumns
-        .where((col) => !header.contains(col))
-        .toList();
-
-    if (missing.isNotEmpty) {
-      throw Exception(
-        'Colunas obrigatórias não encontradas: ${missing.join(', ')}.\n'
-        'A planilha precisa conter exatamente a estrutura esperada.',
-      );
+    if (aiColumnMap != null && aiColumnMap.isNotEmpty) {
+      header = rawHeader.map((col) {
+        final mapped = aiColumnMap[col] ?? col;
+        return _canonicalColumnName(mapped);
+      }).toList();
     }
 
     int indexOf(String name) => header.indexOf(name);
@@ -292,13 +424,13 @@ class ExcelParserService {
     final idxProduto = indexOf('Produto');
     final idxProdutosIndividuais = indexOf('Produtos Individuais');
     final idxQuantidade = indexOf('Quantidade');
-    final idxPrecoUnit = indexOf('Preço Unit.');
+    final idxPrecoUnit = indexOf('Preco Unit.');
     final idxVendaTotal = indexOf('Venda Total');
-    final idxTipoAnuncio = indexOf('Tipo Anúncio');
+    final idxTipoAnuncio = indexOf('Tipo Anuncio');
     final idxTipoEntrega = indexOf('Tipo Entrega');
     final idxCustoProduto = indexOf('Custo Produto');
-    final idxComissaoMkt = indexOf('Comissão MKT');
-    final idxAdsFacil = indexOf('Ads Fácil');
+    final idxComissaoMkt = indexOf('Comissao MKT');
+    final idxAdsFacil = indexOf('Ads Facil');
     final idxCustoFrete = indexOf('Custo Frete');
     final idxImposto = indexOf('Imposto');
     final idxEmbalagem = indexOf('Embalagem');
@@ -306,20 +438,32 @@ class ExcelParserService {
     final idxLucroRs = indexOf('Lucro R\$');
     final idxLucroPct = indexOf('Lucro %');
 
+    _validateRecognizedColumns(header);
+
     final records = <SaleRecord>[];
 
-    for (int i = 1; i < sheet.rows.length; i++) {
-      final row = sheet.rows[i];
+    for (int i = 1; i < rows.length; i++) {
+      final row = rows[i];
       if (row.isEmpty) continue;
 
       String textAt(int index) {
         if (index < 0 || index >= row.length) return '';
-        return (row[index]?.value ?? '').toString().trim();
+        return (row[index] ?? '').toString().trim();
       }
 
       final produto = textAt(idxProduto);
       final sku = textAt(idxSku);
-      final status = textAt(idxStatus);
+      final status = textAt(idxStatus).isEmpty ? 'COMPLETED' : textAt(idxStatus);
+      final quantidadeRaw = _toInt(indexValue(row, idxQuantidade));
+      final quantidade = quantidadeRaw <= 0 ? 1 : quantidadeRaw;
+      final precoUnitario = _toDouble(indexValue(row, idxPrecoUnit));
+      final vendaTotalRaw = _toDouble(indexValue(row, idxVendaTotal));
+      final vendaTotal = vendaTotalRaw > 0
+          ? vendaTotalRaw
+          : (precoUnitario > 0 ? quantidade * precoUnitario : 0.0);
+      final custoTotal = _toDouble(indexValue(row, idxCustoTotal));
+      final lucroRaw = _toDouble(indexValue(row, idxLucroRs));
+      final lucroReais = lucroRaw != 0 ? lucroRaw : vendaTotal - custoTotal;
 
       if (produto.isEmpty && sku.isEmpty && status.isEmpty) {
         continue;
@@ -335,9 +479,9 @@ class ExcelParserService {
         sku: sku,
         produto: produto,
         produtosIndividuais: textAt(idxProdutosIndividuais),
-        quantidade: _toInt(indexValue(row, idxQuantidade)),
-        precoUnitario: _toDouble(indexValue(row, idxPrecoUnit)),
-        vendaTotal: _toDouble(indexValue(row, idxVendaTotal)),
+        quantidade: quantidade,
+        precoUnitario: precoUnitario,
+        vendaTotal: vendaTotal,
         tipoAnuncio: textAt(idxTipoAnuncio),
         tipoEntrega: textAt(idxTipoEntrega),
         custoProduto: _toDouble(indexValue(row, idxCustoProduto)),
@@ -346,8 +490,8 @@ class ExcelParserService {
         custoFrete: _toDouble(indexValue(row, idxCustoFrete)),
         imposto: _toDouble(indexValue(row, idxImposto)),
         embalagem: _toDouble(indexValue(row, idxEmbalagem)),
-        custoTotal: _toDouble(indexValue(row, idxCustoTotal)),
-        lucroReais: _toDouble(indexValue(row, idxLucroRs)),
+        custoTotal: custoTotal,
+        lucroReais: lucroReais,
         lucroPercentual: _toDouble(indexValue(row, idxLucroPct)),
       );
 
@@ -357,9 +501,61 @@ class ExcelParserService {
     return aggregateRecords(records);
   }
 
-  static dynamic indexValue(List<Data?> row, int index) {
+  static dynamic indexValue(List<dynamic> row, int index) {
     if (index < 0 || index >= row.length) return null;
-    return row[index]?.value;
+    return row[index];
+  }
+
+  static bool canMapLocally(List<String> rawHeaders) {
+    final mapped = rawHeaders.map(_canonicalColumnName).toList();
+    return mapped.any((col) => col == 'Venda Total' || col == 'Preco Unit.') &&
+        mapped.any((col) =>
+            col == 'Produto' || col == 'SKU' || col == 'ID Pedido');
+  }
+
+  static Map<String, String> localColumnMapping(List<String> rawHeaders) {
+    return {
+      for (final header in rawHeaders)
+        if (_canonicalColumnName(header) != header)
+          header: _canonicalColumnName(header),
+    };
+  }
+
+  static String _canonicalColumnName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return trimmed;
+    if (_canonicalColumns.contains(trimmed)) return trimmed;
+    return _headerAliases[_headerKey(trimmed)] ?? trimmed;
+  }
+
+  static void _validateRecognizedColumns(List<String> header) {
+    final hasValue = header.contains('Venda Total') || header.contains('Preco Unit.');
+    final hasIdentifier = header.contains('Produto') ||
+        header.contains('SKU') ||
+        header.contains('ID Pedido');
+
+    if (!hasValue || !hasIdentifier) {
+      throw Exception(
+        'Nao foi possivel identificar colunas minimas de venda. '
+        'A planilha precisa ter pelo menos produto/SKU/pedido e valor total ou preco unitario.',
+      );
+    }
+  }
+
+  static String _headerKey(String value) {
+    var result = _stripAccents(value).toLowerCase().trim();
+    const replacements = {
+      '%': ' percent ',
+      r'$': ' ',
+      '.': ' ',
+      '_': ' ',
+      '-': ' ',
+      '/': ' ',
+    };
+    replacements.forEach((from, to) {
+      result = result.replaceAll(from, to);
+    });
+    return result.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static SpreadsheetAggregatedData aggregateRecords(List<SaleRecord> records) {
@@ -368,6 +564,7 @@ class ExcelParserService {
 
     final produtoQtd = <String, int>{};
     final produtoFat = <String, double>{};
+    final produtoDevolvidoQtd = <String, int>{};
     final anuncioQtd = <String, int>{};
     final anuncioFat = <String, double>{};
 
@@ -386,7 +583,7 @@ class ExcelParserService {
         monthLabels[key] = _monthLabel(record.dataVenda!);
       }
 
-      final status = _normalize(record.status);
+      final status = _normalizeStatus(record.status);
 
       if (status == 'COMPLETED') {
         completedRecords.add(record);
@@ -435,8 +632,13 @@ class ExcelParserService {
         }
       }
 
-      if (status.contains('DEVOLUCAO')) {
+      if (status == 'DEVOLUCAO') {
         pedidosDevolucao++;
+        final produtoKey = record.produto.isNotEmpty
+            ? record.produto
+            : (record.sku.isNotEmpty ? record.sku : '-');
+        produtoDevolvidoQtd[produtoKey] =
+            (produtoDevolvidoQtd[produtoKey] ?? 0) + record.quantidade;
       }
     }
 
@@ -450,6 +652,9 @@ class ExcelParserService {
       ..sort((a, b) => b.value.compareTo(a.value));
 
     final top10ProdutosReceita = produtoFat.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final top10ProdutosDevolvidos = produtoDevolvidoQtd.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     final top10Anuncios = anuncioQtd.entries.toList()
@@ -477,6 +682,7 @@ class ExcelParserService {
       ticketMedio: ticketMedio,
       top10Produtos: top10Produtos.take(10).toList(),
       top10ProdutosReceita: top10ProdutosReceita.take(10).toList(),
+      top10ProdutosDevolvidos: top10ProdutosDevolvidos.take(10).toList(),
       top10Anuncios: top10Anuncios.take(10).toList(),
       top10AnunciosReceita: top10AnunciosReceita.take(10).toList(),
       mesReferencia: mesReferencia,
@@ -488,21 +694,67 @@ class ExcelParserService {
   }
 
   static String _normalize(String value) {
-    return value
-        .trim()
-        .toUpperCase()
-        .replaceAll('Ç', 'C')
-        .replaceAll('Ã', 'A')
-        .replaceAll('Á', 'A')
-        .replaceAll('À', 'A')
-        .replaceAll('Â', 'A')
-        .replaceAll('É', 'E')
-        .replaceAll('Ê', 'E')
-        .replaceAll('Í', 'I')
-        .replaceAll('Ó', 'O')
-        .replaceAll('Ô', 'O')
-        .replaceAll('Õ', 'O')
-        .replaceAll('Ú', 'U');
+    return _stripAccents(value).trim().toUpperCase();
+  }
+
+  static String _normalizeStatus(String statusRaw) {
+    if (statusRaw.trim().isEmpty) return 'COMPLETED';
+    final status = _normalize(statusRaw);
+    if (status == 'COMPLETED' ||
+        status == 'DELIVERED' ||
+        status == 'ENTREGUE' ||
+        status == 'CONCLUIDO' ||
+        status == 'CONCLUÍDO' ||
+        status == 'FATURADO' ||
+        status == 'PAGO' ||
+        status == 'APROVADO') {
+      return 'COMPLETED';
+    }
+    if (status.contains('DEVOL') ||
+        status.contains('REEMB') ||
+        status.contains('ESTORN') ||
+        status.contains('RETURN')) {
+      return 'DEVOLUCAO';
+    }
+    return status;
+  }
+
+  static String _stripAccents(String value) {
+    var result = value;
+    const replacements = {
+      '\u00e1': 'a',
+      '\u00e0': 'a',
+      '\u00e2': 'a',
+      '\u00e3': 'a',
+      '\u00e4': 'a',
+      '\u00c1': 'A',
+      '\u00c0': 'A',
+      '\u00c2': 'A',
+      '\u00c3': 'A',
+      '\u00c4': 'A',
+      '\u00e9': 'e',
+      '\u00ea': 'e',
+      '\u00e8': 'e',
+      '\u00c9': 'E',
+      '\u00ca': 'E',
+      '\u00c8': 'E',
+      '\u00ed': 'i',
+      '\u00cd': 'I',
+      '\u00f3': 'o',
+      '\u00f4': 'o',
+      '\u00f5': 'o',
+      '\u00d3': 'O',
+      '\u00d4': 'O',
+      '\u00d5': 'O',
+      '\u00fa': 'u',
+      '\u00da': 'U',
+      '\u00e7': 'c',
+      '\u00c7': 'C',
+    };
+    replacements.forEach((from, to) {
+      result = result.replaceAll(from, to);
+    });
+    return result;
   }
 
   static Map<String, int> _parseProdutosIndividuais(String raw) {
@@ -559,11 +811,12 @@ class ExcelParserService {
       normalized = normalized.substring(1);
     }
 
-    final hasComma = normalized.contains(',');
-    final hasDot = normalized.contains('.');
+    final dotCount = '.'.allMatches(normalized).length;
+    final commaCount = ','.allMatches(normalized).length;
+
     var numberText = normalized;
 
-    if (hasComma && hasDot) {
+    if (dotCount > 0 && commaCount > 0) {
       final lastComma = normalized.lastIndexOf(',');
       final lastDot = normalized.lastIndexOf('.');
       final decimalSep = lastComma > lastDot ? ',' : '.';
@@ -572,18 +825,14 @@ class ExcelParserService {
       if (decimalSep == ',') {
         numberText = numberText.replaceAll(',', '.');
       }
-    } else if (hasComma) {
-      final parts = normalized.split(',');
-      final looksLikeThousands = parts.length == 2 && parts[1].length == 3;
-      numberText = looksLikeThousands
-          ? normalized.replaceAll(',', '')
-          : normalized.replaceAll(',', '.');
-    } else if (hasDot) {
-      final parts = normalized.split('.');
-      final looksLikeThousands = parts.length == 2 && parts[1].length == 3;
-      numberText = looksLikeThousands
-          ? normalized.replaceAll('.', '')
-          : normalized.replaceAll(',', '');
+    } else if (commaCount > 1) {
+      numberText = normalized.replaceAll(',', '');
+    } else if (dotCount > 1) {
+      numberText = normalized.replaceAll('.', '');
+    } else if (commaCount == 1) {
+      numberText = normalized.replaceAll(',', '.');
+    } else if (dotCount == 1) {
+      numberText = normalized;
     }
 
     final parsed = double.tryParse(numberText) ?? 0.0;

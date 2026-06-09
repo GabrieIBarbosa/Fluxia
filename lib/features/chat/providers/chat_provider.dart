@@ -101,6 +101,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> sendMessage(String pergunta) async {
     if (pergunta.trim().isEmpty) return;
+    if (state.perguntasDisponiveis <= 0) {
+      state = state.copyWith(
+        errorMessage: 'Assista a um video para liberar novas perguntas.',
+      );
+      return;
+    }
 
     final uid = _ref.read(authProvider).user?.uid;
 
@@ -121,59 +127,61 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final spreadsheetState = _ref.read(spreadsheetDataProvider);
       final activeData = spreadsheetState.activeData;
-      final selectedSheets = spreadsheetState.spreadsheets
-          .where((sheet) => sheet.selected)
-          .map((sheet) => sheet.name)
-          .toList();
-      final activeSheet = spreadsheetState.spreadsheets
-          .cast<ImportedSpreadsheet?>()
-          .firstWhere((sheet) => sheet?.selected == true, orElse: () => null);
 
-      final resumoJson = activeData != null
-          ? {
-              ...activeData.toResumoJson(),
-              'planilhas_selecionadas': selectedSheets,
-              'total_planilhas_importadas':
-                  spreadsheetState.spreadsheets.length,
-              'total_planilhas_selecionadas': selectedSheets.length,
-              'planilha_ativa_id': spreadsheetState.activeSpreadsheetId,
-              'planilha_ativa_nome': activeSheet?.name,
-              'ha_planilha_ativa': true,
-            }
-          : {
-              'planilhas_selecionadas': selectedSheets,
-              'total_planilhas_importadas':
-                  spreadsheetState.spreadsheets.length,
-              'total_planilhas_selecionadas': selectedSheets.length,
-              'planilha_ativa_id': null,
-              'planilha_ativa_nome': null,
-              'ha_planilha_ativa': false,
-            };
+      final planilhasJson = spreadsheetState.spreadsheets.map((sheet) {
+        final summary = sheet.summary;
+        return {
+          'id': sheet.id,
+          'nome': sheet.name,
+          'selecionada': sheet.selected,
+          'mes_referencia': summary.mesReferencia,
+          'mes_label': summary.mesReferenciaLabel,
+          'data_inicio': summary.dataInicio?.toIso8601String().split('T').first,
+          'data_fim': summary.dataFim?.toIso8601String().split('T').first,
+          ...summary.toResumoJson(),
+        };
+      }).toList();
 
-      final List<Content> chatHistory = [];
-      for (final m in state.messages.take(12)) {
-        if (m.isUser) {
-          chatHistory.add(Content.text(m.content));
-        } else {
-          chatHistory.add(Content.model([TextPart(m.content)]));
-        }
-      }
+      final resumoJson = {
+        'total_planilhas_importadas': spreadsheetState.spreadsheets.length,
+        'planilhas_importadas': planilhasJson,
+        'consolidado_selecionado': activeData != null
+            ? {
+                'data_inicio': activeData.dataInicio?.toIso8601String().split('T').first,
+                'data_fim': activeData.dataFim?.toIso8601String().split('T').first,
+                ...activeData.toResumoJson(),
+              }
+            : null,
+      };
 
       final ai = FirebaseAI.vertexAI();
       final model = ai.generativeModel(
         model: 'gemini-2.5-flash',
         systemInstruction: Content.system(
-          'Você é um consultor de e-commerce do app Fluxia. '
-          'Responda usando apenas os dados da planilha ativa do usuário. '
-          'Se não houver planilha ativa, oriente o usuário a importar e selecionar uma planilha XLSX. '
-          'Considere os seguintes KPIs pré-processados: pedidos completed, pedidos de devolução, faturamento total, lucro total, lucro percentual, ticket médio, top 10 produtos e top 10 anúncios. '
-          'Dados disponíveis agora: $resumoJson',
+          'Você é o Assistente Fluxia, um consultor de e-commerce inteligente integrado ao aplicativo Fluxia. '
+          'Seu objetivo é ajudar o usuário a analisar a performance de vendas de sua loja virtual. '
+          'Você deve seguir RIGOROSAMENTE as seguintes diretrizes:\n\n'
+          '1. IDIOMA E FORMATAÇÃO DE SAÍDA:\n'
+          '   - Responda SEMPRE em português brasileiro natural, direto, amigável e profissional.\n'
+          '   - Use formatação Markdown (negrito para destacar números, listas se necessário) para tornar a leitura fluida.\n'
+          '   - IMPORTANTE: NUNCA responda em formato JSON, bloco de código de programação ou qualquer estrutura puramente técnica (como chaves ou propriedades de objeto). O usuário final deve ler apenas um texto corrido e bem estruturado.\n\n'
+          '2. CONTEXTO DE DADOS (JSON DE ENTRADA):\n'
+          '   - Você tem acesso aos dados estruturados da loja através do JSON disponibilizado: $resumoJson\n'
+          '   - O JSON contém a lista de planilhas importadas ("planilhas_importadas") com seus respectivos nomes, meses, faturamento, lucro e KPIs, e um consolidado dos itens atualmente selecionados pelo usuário ("consolidado_selecionado").\n\n'
+          '3. AUTONOMIA PARA CÁLCULOS E INTENÇÃO DO USUÁRIO:\n'
+          '   - Se o usuário perguntar pelo faturamento total ou lucro total consolidado, você deve somar os valores de faturamento_total ou lucro_total de todas as planilhas disponíveis em "planilhas_importadas" (ou das que ele mencionar).\n'
+          '   - Se o usuário perguntar sobre o faturamento/lucro de uma planilha específica (ex: "faturamento da planilha X"), busque os dados apenas daquela planilha na lista.\n'
+          '   - Se perguntado sobre um período, mês ou status de vendas específico, filtre os dados no JSON usando os campos "mes_label", "mes_referencia" ou as estatísticas contidas nos resumos das planilhas.\n'
+          '   - Você tem total autonomia para realizar operações matemáticas simples como somar faturamentos, calcular porcentagem de lucro (Lucro Total / Faturamento Total * 100), ou taxa de devoluções (Pedidos Devolvidos / Pedidos Concluídos * 100).\n\n'
+          '4. TRATAMENTO DE DADOS FALTANTES:\n'
+          '   - Se o usuário fizer uma pergunta complexa para a qual faltem dados (ex: previsão de vendas sem dados de histórico suficientes, ou ticket médio de produtos devolvidos sem valores financeiros específicos de devolução), NUNCA dê uma desculpa genérica ou diga apenas "não consigo responder".\n'
+          '   - Explique exatamente quais dados você tem disponíveis e qual dado específico está faltando para realizar aquele cálculo (ex: "Consigo ver que você teve 44 devoluções, mas como não temos o valor financeiro dessas devoluções cadastrado na planilha, não consigo calcular o ticket médio dos produtos devolvidos").'
         ),
       );
 
-      final chat = model.startChat(history: chatHistory);
+      final chat = model.startChat(history: []);
       final response = await chat.sendMessage(Content.text(pergunta));
-      final resposta = response.text ?? 'Não consegui gerar uma resposta.';
+      final resposta = response.text ?? 'Nao consegui gerar uma resposta.';
 
       if (uid != null) {
         await FirestoreService.saveChatMessage(uid, 'ia', resposta);

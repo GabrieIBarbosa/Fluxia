@@ -32,7 +32,7 @@ class AppStrings {
   static const String dashboardTitle = 'Seu Dashboard';
   static const String heroMetricLabel = 'Faturamento Total';
   static const String topProductsLabel = 'Top 10 Produtos Mais Vendidos';
-  static const String totalOrdersLabel = 'Pedidos Completed';
+  static const String totalOrdersLabel = 'Pedidos Concluídos';
   static const String avgTicketLabel = 'Ticket Médio';
   static const String newImportButton = 'Nova Importação';
 

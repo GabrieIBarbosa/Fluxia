@@ -16,6 +16,7 @@ SpreadsheetAggregatedData _summary() {
     ticketMedio: 50.0,
     top10Produtos: const <MapEntry<String, int>>[],
     top10ProdutosReceita: const <MapEntry<String, double>>[],
+    top10ProdutosDevolvidos: const <MapEntry<String, int>>[],
     top10Anuncios: const <MapEntry<String, int>>[],
     top10AnunciosReceita: const <MapEntry<String, double>>[],
     mesReferencia: '2024-05',
@@ -92,7 +93,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Faturamento Total'), findsOneWidget);
-    expect(find.text('Pedidos Completed'), findsWidgets);
+    expect(find.text('Pedidos Concluídos'), findsWidgets);
     expect(find.text('Planilha ativa'), findsOneWidget);
   });
 }

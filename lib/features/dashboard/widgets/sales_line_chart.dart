@@ -70,8 +70,28 @@ class SalesLineChart extends StatelessWidget {
                   rightTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
                   ),
-                  leftTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 54,
+                      interval: maxY / 4,
+                      getTitlesWidget: (value, meta) {
+                        if (value < 0 || value > maxY) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            _formatAxisValue(value),
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.textHint,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
@@ -154,5 +174,12 @@ class SalesLineChart extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatAxisValue(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(0)}k';
+    if (value % 1 == 0) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(1);
   }
 }

@@ -1,0 +1,45 @@
+FUNCIONAMENTO DO FLUXIA
+
+Fluxo principal
+
+1. O usuario faz login pelo Firebase Auth.
+2. Na Home, o app importa arquivos XLSX ou CSV pelo file_picker.
+3. O ExcelParserService le as linhas, reconhece nomes de colunas comuns e transforma cada linha em SaleRecord.
+4. O parser calcula um resumo consolidado: faturamento, lucro, ticket medio, pedidos concluidos, devolucoes, produtos mais vendidos, produtos devolvidos e anuncios.
+5. O FirestoreService salva o resumo em usuarios/{uid}/planilhas e as linhas em usuarios/{uid}/vendas.
+6. O SpreadsheetDataProvider mantem o estado das planilhas importadas e selecionadas. Quando mais de uma planilha esta selecionada, ele soma os resumos para dashboard e IA.
+
+Funcoes importantes
+
+- ExcelParserService.extractSampleRows: pega cabecalhos e poucas linhas de exemplo.
+- ExcelParserService.localColumnMapping: tenta mapear colunas sem IA para evitar demora em planilhas simples.
+- ExcelParserService.parseAndAggregate: converte XLSX/CSV em registros e calcula KPIs.
+- SpreadsheetDataNotifier.pickAndProcessSpreadsheet: orquestra importacao, validacao, parser e persistencia.
+- SpreadsheetDataNotifier.setAllSpreadsheetsSelected: seleciona ou desmarca todas as planilhas.
+- FirestoreService.saveExcelSummary: salva o resumo da planilha.
+- FirestoreService.saveSalesRecords: salva as vendas em lotes no Firestore.
+- ChatNotifier.sendMessage: monta o JSON dos dados atualmente selecionados e envia ao Gemini.
+- AdMobService.showRewardedAd: mostra o video recompensado e libera perguntas quando o usuario recebe a recompensa.
+
+IA e contexto
+
+A IA nao le a planilha bruta a cada pergunta. Ela recebe um JSON com os KPIs ja calculados das planilhas selecionadas. Isso deixa a resposta mais barata e previsivel.
+
+O chat agora ignora historico antigo ao chamar o Gemini, usando apenas o JSON atual. Isso evita o bug em que uma planilha deletada continuava influenciando respostas por causa de mensagens antigas salvas no chat.
+
+Importacao otimizada
+
+Antes, toda importacao tentava chamar IA para identificar colunas. Isso deixava planilhas pequenas lentas.
+
+Agora o app faz primeiro um mapeamento local por aliases comuns, como produto, sku, total, valor total, quantidade e preco unitario. O Gemini so entra como fallback quando o app nao reconhece o minimo necessario.
+
+AdMob
+
+O app usa anuncio recompensado:
+
+1. O usuario tem um saldo de perguntas em perguntas_disponiveis.
+2. Cada resposta da IA consome uma pergunta.
+3. Quando o saldo acaba, o chat bloqueia o envio e mostra o botao de assistir video.
+4. Ao concluir o anuncio, FirestoreService.addPerguntasAdWatch soma novas perguntas no usuario.
+
+Os IDs atuais em AppConfig sao IDs de teste do Google AdMob. Para publicar, eles devem ser trocados pelos IDs reais da conta AdMob do projeto.
